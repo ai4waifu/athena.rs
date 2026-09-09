@@ -35,6 +35,13 @@ pub enum LinearAlgebraRequest {
         /// 右（对象句柄或符号绑定）。
         rhs: MatrixOperand,
     },
+    /// 逐元素除。
+    ElementwiseDivide {
+        /// 左（对象句柄或符号绑定）。
+        lhs: MatrixOperand,
+        /// 右（对象句柄或符号绑定）。
+        rhs: MatrixOperand,
+    },
     /// 秩（按元素 parent 分派精确/机器）。
     Rank {
         /// 输入（对象句柄或符号绑定）。
@@ -101,6 +108,7 @@ impl LinearAlgebraRequest {
             Self::Index { matrix, row, col } => Self::Index { matrix: *matrix, row: *row, col: *col },
             Self::MatMul { lhs, rhs } => Self::MatMul { lhs: *lhs, rhs: *rhs },
             Self::Hadamard { lhs, rhs } => Self::Hadamard { lhs: *lhs, rhs: *rhs },
+            Self::ElementwiseDivide { lhs, rhs } => Self::ElementwiseDivide { lhs: *lhs, rhs: *rhs },
             Self::Rank { matrix } => Self::Rank { matrix: *matrix },
             Self::Det { matrix } => Self::Det { matrix: *matrix },
             Self::Rref { matrix } => Self::Rref { matrix: *matrix },

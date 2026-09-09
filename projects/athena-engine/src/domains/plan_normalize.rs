@@ -193,6 +193,7 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
         LinearAlgebraRequest::Index { matrix, .. } => check(matrix),
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
+        | LinearAlgebraRequest::ElementwiseDivide { lhs, rhs }
         | LinearAlgebraRequest::Solve { a: lhs, b: rhs }
         | LinearAlgebraRequest::Dot { lhs, rhs }
         | LinearAlgebraRequest::Cross { lhs, rhs } => {

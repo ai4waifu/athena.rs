@@ -169,6 +169,29 @@ impl<'a> ExecutionHost<'a> {
         })
     }
 
+    fn host_elementwise_divide(
+        &mut self,
+        lhs: crate::domains::linear_algebra::MatrixRef,
+        rhs: crate::domains::linear_algebra::MatrixRef,
+    ) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixOperand};
+        let request = LinearAlgebraRequest::ElementwiseDivide {
+            lhs: MatrixOperand::object(lhs),
+            rhs: MatrixOperand::object(rhs),
+        };
+        Ok(match self.session.execute_linear_algebra(request) {
+            LinearAlgebraResult::Ok {
+                value: LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope),
+            } => {
+                let matrix_ref = self.session.matrix_objects.intern(envelope.value);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Some(HostOutcome::Value(SlotValue::Value(value_id)))
+            }
+            LinearAlgebraResult::Err { diagnostic } => Some(HostOutcome::Diagnostic(diagnostic)),
+            LinearAlgebraResult::Ok { .. } => None,
+        })
+    }
+
     fn apply_arithmetic(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: `Multiply` on typed matrices is Hadamard (element-wise), never MatMul.
         // Dialects must lower MATLAB `A*B` / Mathematica `Dot` to explicit MatMul / Dot goals.
@@ -894,10 +917,17 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(op.discriminant())));
         }
-        // Living 16: typed matrix `ElementwiseMultiply` is Hadamard, not nested-list zip.
+        // Living 16: typed matrix elementwise ops stay on MatrixRef (no nested-list reverse recognition).
         if op == SemanticOperator::ElementwiseMultiply {
             if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
                 if let Some(outcome) = self.host_hadamard(lhs, rhs)? {
+                    return Ok(outcome);
+                }
+            }
+        }
+        if op == SemanticOperator::ElementwiseDivide {
+            if let (Some(lhs), Some(rhs)) = (self.matrix_ref_from_slot(args[0]), self.matrix_ref_from_slot(args[1])) {
+                if let Some(outcome) = self.host_elementwise_divide(lhs, rhs)? {
                     return Ok(outcome);
                 }
             }

@@ -10,7 +10,7 @@ use super::{
     machine::{MachineSolveResult, rank_machine, solve_machine},
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
-    ops::{cross, dot, hadamard, index_scalar, matmul, transpose},
+    ops::{cross, dot, elementwise_divide, hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
     value::MatrixValue,
@@ -114,6 +114,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::Index { .. } => "index",
         LinearAlgebraRequest::MatMul { .. } => "matmul",
         LinearAlgebraRequest::Hadamard { .. } => "hadamard",
+        LinearAlgebraRequest::ElementwiseDivide { .. } => "elementwise_divide",
         LinearAlgebraRequest::Rank { .. } => "rank",
         LinearAlgebraRequest::Det { .. } => "det",
         LinearAlgebraRequest::Rref { .. } => "rref",
@@ -177,6 +178,11 @@ fn run(
             let rhs = rhs.resolve_value(store, matrix_binding)?;
             // 与 `Dot` 同表面：行/列向量结果投影为平坦 List（MATLAB `.*`）。
             Ok(LinearAlgebraValue::dot_outcome(hadamard(&lhs, &rhs)?))
+        }
+        LinearAlgebraRequest::ElementwiseDivide { lhs, rhs } => {
+            let lhs = lhs.resolve_value(store, matrix_binding)?;
+            let rhs = rhs.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(elementwise_divide(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Rank { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
