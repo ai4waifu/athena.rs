@@ -460,12 +460,48 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_join(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        // Living 16: Join of typed MatrixRefs stays on MatrixRef (list-level-1 semantics).
+        if args.len() >= 2 {
+            if let Some(outcome) = self.host_matrix_join(args)? {
+                return Ok(outcome);
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_join_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_join(&mut self, args: &[SlotValue]) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::join_matrices;
+
+        let mut refs = Vec::with_capacity(args.len());
+        for slot in args {
+            let Some(matrix_ref) = self.matrix_ref_from_slot(*slot)
+            else {
+                return Ok(None);
+            };
+            refs.push(matrix_ref);
+        }
+        let mut owned = Vec::with_capacity(refs.len());
+        for matrix_ref in refs {
+            let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+            else {
+                return Ok(None);
+            };
+            owned.push(matrix);
+        }
+        let parts: Vec<&_> = owned.iter().collect();
+        match join_matrices(&parts) {
+            Ok(joined) => {
+                let matrix_ref = self.session.matrix_objects.intern(joined);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
+        }
     }
 
     fn apply_take(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
