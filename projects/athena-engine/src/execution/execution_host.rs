@@ -31,7 +31,7 @@ use crate::{
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
-            store_index_axes_matrix, symbolic_term_from_value_id,
+            store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -528,6 +528,33 @@ impl<'a> ExecutionHost<'a> {
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
+        }
+        // Living 16: constructors intern typed MatrixRef instead of nested Collection Terms.
+        if let Some((rows, cols)) = parse_matrix_dims(self.session, &terms) {
+            use crate::domains::linear_algebra::{MatrixParent, MatrixShape, MatrixValue, StorageOrder};
+            use athena_numeric::Integer;
+            let ok_dims = matches!(rows.checked_mul(cols), Some(v) if v <= 4096);
+            if ok_dims {
+                let parent = MatrixParent::integers();
+                let built = match op {
+                    SemanticOperator::Zeros => MatrixValue::zeros(parent, MatrixShape::new(rows, cols), StorageOrder::RowMajor).ok(),
+                    SemanticOperator::Ones => {
+                        let n = (rows * cols) as usize;
+                        let mut data = Vec::with_capacity(n);
+                        for _ in 0..n {
+                            data.push(Integer::one());
+                        }
+                        MatrixValue::from_integers_row_major(rows, cols, data).ok()
+                    }
+                    SemanticOperator::Eye if rows == cols => MatrixValue::identity(parent, rows).ok(),
+                    _ => None,
+                };
+                if let Some(matrix) = built {
+                    let matrix_ref = self.session.matrix_objects.intern(matrix);
+                    let value_id = self.session.insert_matrix_value(matrix_ref);
+                    return Ok(HostOutcome::Value(SlotValue::Value(value_id)));
+                }
+            }
         }
         let term = evaluate_matrix_constructor_terms(self.session, op, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
