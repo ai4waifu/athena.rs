@@ -13,6 +13,9 @@ pub struct MatrixRef(pub u64);
 #[derive(Debug)]
 struct MatrixObjectEntry {
     fingerprint: u64,
+    /// Monotonic revision for this handle (Living 16). Content-addressed `intern`
+    /// keeps revision `0`; in-place replace paths will bump it in a later slice.
+    revision: u64,
     matrix: MatrixValue,
 }
 
@@ -45,7 +48,11 @@ impl MatrixObjectStore {
             return MatrixRef(idx as u64);
         }
         let id = self.entries.len() as u64;
-        self.entries.push(MatrixObjectEntry { fingerprint, matrix });
+        self.entries.push(MatrixObjectEntry {
+            fingerprint,
+            revision: 0,
+            matrix,
+        });
         MatrixRef(id)
     }
 
@@ -62,6 +69,11 @@ impl MatrixObjectStore {
     /// Provisional 内容指纹（稳定 `MatrixFingerprint` 合同后续切片）。
     pub fn fingerprint(&self, r: MatrixRef) -> Option<u64> {
         self.entries.get(r.0 as usize).map(|e| e.fingerprint)
+    }
+
+    /// Handle revision (Living 16). Fresh intern is `0`.
+    pub fn revision(&self, r: MatrixRef) -> Option<u64> {
+        self.entries.get(r.0 as usize).map(|e| e.revision)
     }
 
     /// M-Graph 的 [`ObjectRef`]（`TheoryContextId::MATRIX`）。
