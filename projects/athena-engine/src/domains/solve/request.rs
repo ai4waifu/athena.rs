@@ -12,6 +12,13 @@ pub enum SolveRequest {
         /// 未知量。
         unknown: SymbolId,
     },
+    /// 仿射线性方程组对多个未知量求精确解集（投影为 Rules）。
+    LinearEquations {
+        /// 方程项列表（每项通常为 `Equal[…]`）。
+        equations: Vec<TermId>,
+        /// 未知量（列顺序即矩阵列顺序）。
+        unknowns: Vec<SymbolId>,
+    },
 }
 
 impl SolveRequest {
@@ -19,6 +26,10 @@ impl SolveRequest {
     pub fn owning_copy(&self) -> Self {
         match self {
             Self::UnivariateEquation { equation, unknown } => Self::UnivariateEquation { equation: *equation, unknown: *unknown },
+            Self::LinearEquations { equations, unknowns } => Self::LinearEquations {
+                equations: equations.clone(),
+                unknowns: unknowns.clone(),
+            },
         }
     }
 }
