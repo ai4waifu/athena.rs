@@ -784,6 +784,71 @@ pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<Mat
     }
 }
 
+fn collect_integer_row(matrix: &MatrixValue) -> Result<Vec<i64>, Diagnostic> {
+    if matrix.shape().rows != 1 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "set_ops_require_row_vector"));
+    }
+    if matrix.parent().element != ElementParentKind::Integers {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "set_ops_require_integers"));
+    }
+    let mut values = Vec::with_capacity(matrix.shape().cols as usize);
+    for j in 0..matrix.shape().cols {
+        match matrix.get(0, j)? {
+            MatrixEntry::Integer(z) => {
+                let Some(i) = z.to_i64()
+                else {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "set_ops_integer_overflow"));
+                };
+                values.push(i);
+            }
+            _ => unreachable!(),
+        }
+    }
+    Ok(values)
+}
+
+/// `Union` of typed integer `1×n` rows: unique values, ascending.
+pub fn union_integer_row_vectors(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> {
+    if parts.is_empty() {
+        return MatrixValue::from_integers_row_major(1, 0, Vec::new());
+    }
+    let mut merged = Vec::new();
+    for part in parts {
+        for v in collect_integer_row(part)? {
+            if !merged.contains(&v) {
+                merged.push(v);
+            }
+        }
+    }
+    merged.sort_unstable();
+    let cols = merged.len() as u64;
+    let data: Vec<Integer> = merged.into_iter().map(Integer::from).collect();
+    MatrixValue::from_integers_row_major(1, cols, data)
+}
+
+/// `Intersection` of typed integer `1×n` rows: values in every part, unique, ascending.
+pub fn intersection_integer_row_vectors(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> {
+    if parts.is_empty() {
+        return MatrixValue::from_integers_row_major(1, 0, Vec::new());
+    }
+    let lists: Result<Vec<Vec<i64>>, _> = parts.iter().map(|p| collect_integer_row(p)).collect();
+    let lists = lists?;
+    let first = &lists[0];
+    let mut out = Vec::new();
+    for v in first {
+        if out.contains(v) {
+            continue;
+        }
+        if lists[1..].iter().all(|list| list.contains(v)) {
+            out.push(*v);
+        }
+    }
+    out.sort_unstable();
+    let cols = out.len() as u64;
+    let data: Vec<Integer> = out.into_iter().map(Integer::from).collect();
+    MatrixValue::from_integers_row_major(1, cols, data)
+}
+
 /// Explicit matrix product for `Dot` operands (no shape guessing / auto-transpose).
 ///
 /// Dialects must lower vectors with an explicit rank and orientation. A `1×n` row is not

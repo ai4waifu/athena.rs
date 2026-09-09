@@ -32,8 +32,9 @@ pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
 pub use ops::{
-    cross, dot, elementwise_divide, elementwise_power, extend_row_vector_scalar, flatten_row_major, hadamard, index_scalar, join_matrices,
-    matmul, pad_left_row_vector, reverse_matrix, riffle_row_vectors, slice_matrix, transpose,
+    cross, dot, elementwise_divide, elementwise_power, extend_row_vector_scalar, flatten_row_major, hadamard, index_scalar,
+    intersection_integer_row_vectors, join_matrices, matmul, pad_left_row_vector, reverse_matrix, riffle_row_vectors, slice_matrix, transpose,
+    union_integer_row_vectors,
 };
 pub use parent::{ElementParentKind, MatrixParent, RoundingPolicy, ShapePolicy, SparseStrategy};
 pub use request::LinearAlgebraRequest;
