@@ -213,6 +213,35 @@ fn compile_and_execute_read_matrix_binding_as_nested_list() {
 
 #[test]
 #[test]
+fn compile_and_execute_diagonal_matrix_returns_matrix_value() {
+    use athena_engine::runtime::RuntimeValue;
+    use athena_ir::ApplicationHead;
+    use athena_types::CollectionKind;
+
+    let mut session = Session::new();
+    let d0 = session.builder().int(1, Default::default());
+    let d1 = session.builder().int(2, Default::default());
+    let diag = session.builder().collection(CollectionKind::OrderedCollection, vec![d0, d1], Default::default());
+    let call = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::DiagonalMatrix),
+        vec![diag],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(call))
+        .expect("diag");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let matrix = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(matrix.shape().rows, 2);
+    assert_eq!(matrix.shape().cols, 2);
+}
+
+#[test]
 fn compile_and_execute_eye_returns_matrix_value() {
     use athena_ir::ApplicationHead;
     use athena_engine::runtime::RuntimeValue;

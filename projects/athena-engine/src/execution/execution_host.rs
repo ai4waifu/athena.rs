@@ -31,7 +31,7 @@ use crate::{
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
-            store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
+            store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims, term_scalar_rational_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -561,12 +561,88 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_diagonal_matrix(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() == 1 {
+            // Living 16: build typed MatrixRef from diagonal vector (Collection or MatrixRef).
+            if let Some(matrix) = self.try_diagonal_matrix_value(args[0])? {
+                let matrix_ref = self.session.matrix_objects.intern(matrix);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                return Ok(HostOutcome::Value(SlotValue::Value(value_id)));
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_diagonal_matrix_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn try_diagonal_matrix_value(&mut self, slot: SlotValue) -> Result<Option<crate::domains::linear_algebra::MatrixValue>> {
+        use crate::domains::linear_algebra::{MatrixEntry, MatrixParent, MatrixShape, MatrixValue, StorageOrder};
+        use athena_ir::TermNode;
+        use athena_numeric::Rational;
+
+        let mut diag: Vec<Rational> = Vec::new();
+        if let Some(matrix_ref) = self.matrix_ref_from_slot(slot) {
+            let Some(src) = self.session.matrix_objects.get(matrix_ref)
+            else {
+                return Ok(None);
+            };
+            let rows = src.shape().rows;
+            let cols = src.shape().cols;
+            let entries = if rows == 1 {
+                (0..cols).map(|j| src.get(0, j)).collect::<std::result::Result<Vec<_>, _>>()
+            }
+            else if cols == 1 {
+                (0..rows).map(|i| src.get(i, 0)).collect::<std::result::Result<Vec<_>, _>>()
+            }
+            else {
+                return Ok(None);
+            };
+            let Ok(entries) = entries
+            else {
+                return Ok(None);
+            };
+            for entry in entries {
+                match entry {
+                    MatrixEntry::Integer(z) => diag.push(Rational::from_integer(z)),
+                    MatrixEntry::Rational(r) => diag.push(r),
+                    MatrixEntry::MachineF64(_) => return Ok(None),
+                }
+            }
+        }
+        else {
+            let term = self.slot_as_term(slot)?;
+            let Some(TermNode::Collection { elements, .. }) = self.session.arena.get(term)
+            else {
+                return Ok(None);
+            };
+            let elements = elements.clone();
+            if elements.is_empty() || elements.len() > 4096 {
+                return Ok(None);
+            }
+            for cell in elements {
+                let Some(r) = term_scalar_rational_session(self.session, cell)
+                else {
+                    return Ok(None);
+                };
+                diag.push(r);
+            }
+        }
+        let n = diag.len() as u64;
+        if n == 0 || n > 4096 {
+            return Ok(None);
+        }
+        let Ok(mut matrix) = MatrixValue::zeros(MatrixParent::rationals(), MatrixShape::new(n, n), StorageOrder::RowMajor)
+        else {
+            return Ok(None);
+        };
+        for (i, value) in diag.into_iter().enumerate() {
+            if matrix.set_owned(i as u64, i as u64, MatrixEntry::Rational(value)).is_err() {
+                return Ok(None);
+            }
+        }
+        Ok(Some(matrix))
     }
 
     fn apply_elementwise(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
