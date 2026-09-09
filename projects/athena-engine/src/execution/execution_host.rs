@@ -591,6 +591,9 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Append.discriminant())));
         }
+        if let Some(outcome) = self.host_matrix_append_prepend(false, args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_append_terms(self.session, list, elem)?;
@@ -601,10 +604,96 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Prepend.discriminant())));
         }
+        if let Some(outcome) = self.host_matrix_append_prepend(true, args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_prepend_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    /// Living 16: Append/Prepend on MatrixRef (row join or row-vector scalar extend).
+    fn host_matrix_append_prepend(&mut self, prepend: bool, list_slot: SlotValue, elem_slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{
+            ElementParentKind, MatrixEntry, extend_row_vector_scalar, join_matrices,
+        };
+        use athena_numeric::{Integer, Rational};
+        use crate::runtime::values::numeric_clone::{clone_integer, clone_rational};
+
+        let Some(base_ref) = self.matrix_ref_from_slot(list_slot)
+        else {
+            return Ok(None);
+        };
+        let Some(base) = self.session.matrix_objects.resolve_owning(base_ref)
+        else {
+            return Ok(None);
+        };
+
+        if let Some(elem_ref) = self.matrix_ref_from_slot(elem_slot) {
+            let Some(elem) = self.session.matrix_objects.resolve_owning(elem_ref)
+            else {
+                return Ok(None);
+            };
+            let parts: Vec<&_> = if prepend { vec![&elem, &base] } else { vec![&base, &elem] };
+            return Ok(Some(match join_matrices(&parts) {
+                Ok(joined) => {
+                    let matrix_ref = self.session.matrix_objects.intern(joined);
+                    let value_id = self.session.insert_matrix_value(matrix_ref);
+                    HostOutcome::Value(SlotValue::Value(value_id))
+                }
+                Err(diagnostic) => HostOutcome::Diagnostic(diagnostic),
+            }));
+        }
+
+        // Scalar extend only for 1×n row vectors.
+        if base.shape().rows != 1 {
+            return Ok(None);
+        }
+        let elem_term = self.slot_as_term(elem_slot)?;
+        let Some(n) = number_of(self.session, elem_term)
+        else {
+            return Ok(None);
+        };
+        let entry = match base.parent().element {
+            ElementParentKind::Integers => {
+                if let Some(i) = n.as_exact_integer() {
+                    MatrixEntry::Integer(Integer::from(i))
+                }
+                else if let Some(z) = n.as_integer() {
+                    MatrixEntry::Integer(clone_integer(z))
+                }
+                else {
+                    return Ok(None);
+                }
+            }
+            ElementParentKind::Rationals => {
+                if let Some(i) = n.as_exact_integer() {
+                    MatrixEntry::Rational(Rational::from_integer(Integer::from(i)))
+                }
+                else if let Some(r) = n.as_rational() {
+                    MatrixEntry::Rational(clone_rational(r))
+                }
+                else {
+                    return Ok(None);
+                }
+            }
+            ElementParentKind::MachineReal => {
+                let Some(x) = n.as_machine_f64()
+                else {
+                    return Ok(None);
+                };
+                MatrixEntry::MachineF64(x)
+            }
+        };
+        match extend_row_vector_scalar(&base, entry, prepend) {
+            Ok(extended) => {
+                let matrix_ref = self.session.matrix_objects.intern(extended);
+                let value_id = self.session.insert_matrix_value(matrix_ref);
+                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+            }
+            Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
+        }
     }
 
     fn apply_member_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
