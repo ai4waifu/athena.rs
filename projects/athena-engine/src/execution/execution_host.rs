@@ -668,12 +668,73 @@ impl<'a> ExecutionHost<'a> {
             let term = evaluate_product_iterator_terms(self.session, body, iter)?;
             return Ok(HostOutcome::Value(SlotValue::Term(term)));
         }
+        // Living 16: typed MatrixRef reduction without nested-list reverse recognition.
+        if args.len() == 1 {
+            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                if let Some(outcome) = self.product_matrix_ref(matrix_ref)? {
+                    return Ok(outcome);
+                }
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             terms.push(self.slot_as_term(*slot)?);
         }
         let term = evaluate_product_terms(self.session, terms)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn product_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::MatrixEntry;
+        use crate::runtime::values::arena::push_list;
+        use athena_numeric::Rational;
+
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let rows = matrix.shape().rows;
+        let cols = matrix.shape().cols;
+        let entry_q = |entry: MatrixEntry| -> Option<Rational> {
+            match entry {
+                MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
+                MatrixEntry::Rational(r) => Some(r),
+                MatrixEntry::MachineF64(_) => None,
+            }
+        };
+        if rows == 1 {
+            let mut acc = Rational::one();
+            for j in 0..cols {
+                let Ok(entry) = matrix.get(0, j)
+                else {
+                    return Ok(None);
+                };
+                let Some(q) = entry_q(entry)
+                else {
+                    return Ok(None);
+                };
+                acc = acc.mul(&q);
+            }
+            let term = rational_to_term_session(self.session, &acc);
+            return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+        }
+        let mut out = Vec::with_capacity(cols as usize);
+        for j in 0..cols {
+            let mut acc = Rational::one();
+            for i in 0..rows {
+                let Ok(entry) = matrix.get(i, j)
+                else {
+                    return Ok(None);
+                };
+                let Some(q) = entry_q(entry)
+                else {
+                    return Ok(None);
+                };
+                acc = acc.mul(&q);
+            }
+            out.push(rational_to_term_session(self.session, &acc));
+        }
+        Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
     }
 
     fn apply_determinant(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
