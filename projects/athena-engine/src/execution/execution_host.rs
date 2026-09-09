@@ -700,10 +700,40 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::MemberQ.discriminant())));
         }
+        // Living 16: membership on typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_member_q(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_member_q_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_member_q(
+        &mut self,
+        list_slot: SlotValue,
+        elem_slot: SlotValue,
+    ) -> Result<Option<HostOutcome>> {
+        let Some((matrix, needle)) = self.matrix_1xn_integer_needle(list_slot, elem_slot)?
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        let mut found = false;
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                crate::domains::linear_algebra::MatrixEntry::Integer(z) => {
+                    if z.to_i64() == Some(needle) {
+                        found = true;
+                        break;
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+        let term = self.session.builder().boolean(found, Default::default());
+        Ok(Some(HostOutcome::Value(SlotValue::Term(term))))
     }
 
     fn apply_sort(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -818,10 +848,65 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Count.discriminant())));
         }
+        // Living 16: count on typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_count(args[0], args[1])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let elem = self.slot_as_term(args[1])?;
         let term = evaluate_count_terms(self.session, list, elem)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_count(
+        &mut self,
+        list_slot: SlotValue,
+        elem_slot: SlotValue,
+    ) -> Result<Option<HostOutcome>> {
+        let Some((matrix, needle)) = self.matrix_1xn_integer_needle(list_slot, elem_slot)?
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        let mut n = 0i64;
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                crate::domains::linear_algebra::MatrixEntry::Integer(z) => {
+                    if z.to_i64() == Some(needle) {
+                        n += 1;
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+        let term = self.session.builder().int(n, Default::default());
+        Ok(Some(HostOutcome::Value(SlotValue::Term(term))))
+    }
+
+    /// Shared gate for `MemberQ` / `Count` on integer `1×n` Own matrices.
+    fn matrix_1xn_integer_needle(
+        &mut self,
+        list_slot: SlotValue,
+        elem_slot: SlotValue,
+    ) -> Result<Option<(crate::domains::linear_algebra::MatrixValue, i64)>> {
+        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        else {
+            return Ok(None);
+        };
+        let elem_term = self.slot_as_term(elem_slot)?;
+        let Some(needle) = number_of(self.session, elem_term).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(None);
+        };
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows != 1 || shape.cols == 0 {
+            return Ok(None);
+        }
+        Ok(Some((matrix, needle)))
     }
 
     fn apply_partition(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
