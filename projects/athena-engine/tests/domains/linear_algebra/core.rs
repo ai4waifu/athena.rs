@@ -96,7 +96,10 @@ fn one_based_index_helper_builds_neutral_request() {
     else {
         panic!("index");
     };
-    assert_eq!(v.get(0, 0).unwrap(), MatrixEntry::Integer(i(30)));
+    assert_eq!(v.value.get(0, 0).unwrap(), MatrixEntry::Integer(i(30)));
+    assert_eq!(v.shape.rows, 1);
+    assert_eq!(v.shape.cols, 1);
+    assert_eq!(v.guarantee, AlgorithmGuarantee::Exact);
 }
 
 #[test]

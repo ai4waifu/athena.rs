@@ -8,6 +8,7 @@ use super::{
         norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineSolveResult, rank_machine, solve_machine},
+    matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{cross, dot, hadamard, index_scalar, matmul, transpose},
     request::LinearAlgebraRequest,
@@ -21,10 +22,13 @@ pub const DEFAULT_PIVOT_THRESHOLD: f64 = 1e-12;
 /// 线性代数域值。
 ///
 /// **不**实现 [`Clone`]。深复制用 [`Self::owning_copy`]。
+///
+/// 矩阵值载荷走 [`MatrixResult`]（Living 16），使 shape / element domain / guarantee /
+/// residual / diagnostics 与矩阵值同一次计算一起旅行。
 #[derive(Debug, PartialEq)]
 pub enum LinearAlgebraValue {
-    /// 矩阵。
-    Matrix(MatrixValue),
+    /// 矩阵（带 Living 16 域结果信封）。
+    Matrix(MatrixResult),
     /// 精确秩。
     ExactRank(ExactRankResult),
     /// 机器秩。
@@ -51,6 +55,16 @@ pub enum LinearAlgebraValue {
 }
 
 impl LinearAlgebraValue {
+    /// Wrap an owned matrix with default guarantee from its element parent.
+    pub fn matrix_outcome(value: MatrixValue) -> Self {
+        let guarantee = if value.parent().element.is_machine() {
+            AlgorithmGuarantee::Approximate
+        } else {
+            AlgorithmGuarantee::Exact
+        };
+        Self::Matrix(MatrixResult::from_owned(value, guarantee))
+    }
+
     /// Owning 复制。
     pub fn owning_copy(&self) -> Self {
         match self {
@@ -137,16 +151,16 @@ fn run(
     match request {
         LinearAlgebraRequest::Transpose { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::Matrix(transpose(&matrix)))
+            Ok(LinearAlgebraValue::matrix_outcome(transpose(&matrix)))
         }
         LinearAlgebraRequest::Index { matrix, row, col } => {
             let matrix = resolve(store, matrix)?;
-            Ok(LinearAlgebraValue::Matrix(index_scalar(&matrix, row, col)?))
+            Ok(LinearAlgebraValue::matrix_outcome(index_scalar(&matrix, row, col)?))
         }
         LinearAlgebraRequest::MatMul { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::Matrix(matmul(&lhs, &rhs)?))
+            Ok(LinearAlgebraValue::matrix_outcome(matmul(&lhs, &rhs)?))
         }
         LinearAlgebraRequest::Hadamard { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
@@ -200,7 +214,7 @@ fn run(
                     .detail("reason", "machine_inverse_deferred")
                     .detail("hint", "use exact parent"));
             }
-            Ok(LinearAlgebraValue::Matrix(invert_exact(&matrix)?))
+            Ok(LinearAlgebraValue::matrix_outcome(invert_exact(&matrix)?))
         }
         LinearAlgebraRequest::Trace { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
@@ -228,7 +242,7 @@ fn run(
                     .detail("reason", "machine_nullspace_deferred")
                     .detail("hint", "use exact parent"));
             }
-            Ok(LinearAlgebraValue::Matrix(nullspace_exact(&matrix)?))
+            Ok(LinearAlgebraValue::matrix_outcome(nullspace_exact(&matrix)?))
         }
         LinearAlgebraRequest::Norm { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
