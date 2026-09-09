@@ -1486,6 +1486,96 @@ fn compile_and_execute_union_intersection_matrix_bindings() {
 }
 
 #[test]
+fn compile_and_execute_extract_matrix_bindings() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![
+            Integer::from(10),
+            Integer::from(20),
+            Integer::from(30),
+        ]).expect("v"));
+    let two = session.builder().int(2, Default::default());
+    let extract = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Extract),
+        vec![v_term, two],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(extract),
+                ],
+            }),
+        )
+        .expect("extract_vec");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute extract_vec");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20)
+    ));
+
+    let mut session = Session::new();
+    let a_term = session.builder().symbol("A", Default::default());
+    let sa = match session.arena.get(a_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol A, got {other:?}"),
+    };
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+            Integer::from(4),
+        ]).expect("a"));
+    let two = session.builder().int(2, Default::default());
+    let extract = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Extract),
+        vec![a_term, two],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sa, matrix: a }),
+                    AthenaRequest::Term(extract),
+                ],
+            }),
+        )
+        .expect("extract_row");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute extract_row");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements: cells, .. }) if cells.len() == 2 => {
+            assert!(matches!(session.arena.get(cells[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)));
+            assert!(matches!(session.arena.get(cells[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)));
+        }
+        other => panic!("expected Extract row, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_member_q_count_matrix_bindings() {
     use athena_engine::api::request::SessionCommand;
     use athena_engine::domains::linear_algebra::MatrixValue;
