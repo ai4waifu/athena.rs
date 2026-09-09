@@ -543,7 +543,7 @@ impl<'a> ExecutionHost<'a> {
     fn host_matrix_take_drop(&mut self, op: SemanticOperator, matrix_slot: SlotValue, count_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{AxisRange, IndexSpec, slice_matrix};
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(matrix_slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(matrix_slot)?
         else {
             return Ok(None);
         };
@@ -762,7 +762,7 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
         use athena_numeric::Integer;
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
         else {
             return Ok(None);
         };
@@ -815,7 +815,7 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
         use athena_numeric::Integer;
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
         else {
             return Ok(None);
         };
@@ -898,7 +898,7 @@ impl<'a> ExecutionHost<'a> {
         list_slot: SlotValue,
         elem_slot: SlotValue,
     ) -> Result<Option<(crate::domains::linear_algebra::MatrixValue, i64)>> {
-        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(list_slot)?
         else {
             return Ok(None);
         };
@@ -936,7 +936,7 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
         use athena_numeric::Integer;
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(list_slot)?
         else {
             return Ok(None);
         };
@@ -1331,7 +1331,7 @@ impl<'a> ExecutionHost<'a> {
     fn host_matrix_extract(&mut self, list_slot: SlotValue, index_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{AxisRange, IndexSpec, MatrixEntry, slice_matrix};
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(list_slot)?
         else {
             return Ok(None);
         };
@@ -1404,7 +1404,7 @@ impl<'a> ExecutionHost<'a> {
     fn host_matrix_pad_left(&mut self, list_slot: SlotValue, len_slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::pad_left_row_vector;
 
-        let Some(matrix_ref) = self.matrix_ref_from_slot(list_slot)
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(list_slot)?
         else {
             return Ok(None);
         };
