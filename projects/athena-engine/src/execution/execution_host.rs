@@ -2774,16 +2774,8 @@ impl VmHost for ExecutionHost<'_> {
         };
         if let SlotValue::Value(value_id) = target {
             if let Some(matrix_ref) = self.session.matrix_of_value(value_id) {
-                let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
-                else {
-                    return Ok(HostOutcome::Diagnostic(
-                        Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                            .detail("component", "ExecutionHost")
-                            .detail("reason", "store_index_matrix_missing"),
-                    ));
-                };
                 let val = self.slot_as_term(value)?;
-                return Ok(match store_index_axes_matrix(self.session, matrix, &axes, val)? {
+                return Ok(match store_index_axes_matrix(self.session, matrix_ref, &axes, val)? {
                     MatrixStoreOutcome::Value(stored) => HostOutcome::Value(SlotValue::Value(stored)),
                     MatrixStoreOutcome::Invalid { echo, diagnostic } => HostOutcome::SoftInvalid { value: SlotValue::Term(echo), diagnostic },
                 });

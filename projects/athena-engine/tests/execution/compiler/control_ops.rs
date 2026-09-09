@@ -153,6 +153,7 @@ fn compile_and_execute_store_index_on_matrix_binding() {
     let nine = session.builder().int(9, Default::default());
     let matrix = MatrixValue::from_integers_row_major(2, 2, vec![Integer::from(1), Integer::from(2), Integer::from(3), Integer::from(4)]).expect("matrix");
     let matrix_ref = session.matrix_objects.intern(matrix);
+    assert_eq!(session.matrix_objects.revision(matrix_ref), Some(0));
     let define = AthenaRequest::Command(SessionCommand::DefineMatrix { symbol, matrix: matrix_ref });
     let store = AthenaRequest::Control(ControlPlan::StoreIndex {
         target: a,
@@ -172,7 +173,9 @@ fn compile_and_execute_store_index_on_matrix_binding() {
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(9) => {}
         other => panic!("expected A(1,2) == 9 after StoreIndex, got {other:?}"),
     }
-    assert!(session.matrix_binding(symbol).is_some());
+    let after = session.matrix_binding(symbol).expect("matrix own");
+    assert_eq!(after, matrix_ref, "Living 16: StoreIndex keeps MatrixRef identity");
+    assert_eq!(session.matrix_objects.revision(after), Some(1), "Living 16: StoreIndex bumps revision");
     assert!(session.defs.binding(symbol).is_none());
 }
 
@@ -210,7 +213,10 @@ fn compile_and_execute_store_index_grows_matrix_row_vector() {
     });
     let module = ExecutionCompiler::new().compile(&mut session, &request).expect("grow row");
     let _result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
-    let grown = session.matrix_objects.resolve_owning(session.matrix_binding(symbol).expect("matrix own")).expect("value");
+    let bound = session.matrix_binding(symbol).expect("matrix own");
+    assert_eq!(bound, matrix_ref, "Living 16: grow StoreIndex keeps MatrixRef identity");
+    assert_eq!(session.matrix_objects.revision(bound), Some(1));
+    let grown = session.matrix_objects.resolve_owning(bound).expect("value");
     assert_eq!(grown.shape().rows, 1);
     assert_eq!(grown.shape().cols, 5);
     assert_eq!(grown.get(0, 4).expect("cell").owning_copy(), athena_engine::domains::linear_algebra::MatrixEntry::Integer(Integer::from(5)));
