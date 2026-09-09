@@ -602,6 +602,67 @@ fn compile_and_execute_range_returns_matrix_value() {
 }
 
 #[test]
+fn compile_and_execute_diagonal_matrix_from_matrix_binding() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_engine::runtime::RuntimeValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let v_term = session.builder().symbol("V", Default::default());
+    let sv = match session.arena.get(v_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol V, got {other:?}"),
+    };
+    let v = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(1, 3, vec![
+            Integer::from(1),
+            Integer::from(2),
+            Integer::from(3),
+        ]).expect("v"));
+    let diag = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::DiagonalMatrix),
+        vec![v_term],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(
+            &mut session,
+            &AthenaRequest::Control(ControlPlan::Sequence {
+                steps: vec![
+                    AthenaRequest::Command(SessionCommand::DefineMatrix { symbol: sv, matrix: v }),
+                    AthenaRequest::Term(diag),
+                ],
+            }),
+        )
+        .expect("diag_from_matrix");
+    let result_id = ReferenceExecutor::new()
+        .execute(&mut session, &module)
+        .expect("execute diag_from_matrix");
+    let value_id = session.results.get(result_id).expect("result").value.expect("value");
+    let matrix_ref = match session.values.get(value_id) {
+        Some(RuntimeValue::Matrix(m)) => *m,
+        other => panic!("expected Matrix RuntimeValue, got {other:?}"),
+    };
+    let matrix = session.matrix_objects.resolve_owning(matrix_ref).expect("payload");
+    assert_eq!(matrix.shape().rows, 3);
+    assert_eq!(matrix.shape().cols, 3);
+    for i in 0..3u64 {
+        for j in 0..3u64 {
+            let expect = if i == j { (i + 1) as i64 } else { 0 };
+            match matrix.get(i, j).expect("entry") {
+                athena_engine::domains::linear_algebra::MatrixEntry::Rational(r) => {
+                    assert_eq!(r.numerator().to_i64(), Some(expect));
+                }
+                other => panic!("expected Rational diagonal entry, got {other:?}"),
+            }
+        }
+    }
+}
+
+#[test]
 fn compile_and_execute_diagonal_matrix_returns_matrix_value() {
     use athena_engine::runtime::RuntimeValue;
     use athena_ir::ApplicationHead;
