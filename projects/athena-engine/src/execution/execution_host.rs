@@ -763,9 +763,55 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::DeleteDuplicates.discriminant())));
         }
+        // Living 16: dedupe typed 1×n MatrixRef without nested-list reverse recognition.
+        if let Some(outcome) = self.host_matrix_delete_duplicates(args[0])? {
+            return Ok(outcome);
+        }
         let list = self.slot_as_term(args[0])?;
         let term = evaluate_delete_duplicates_terms(self.session, list)?;
         Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn host_matrix_delete_duplicates(&mut self, slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
+        use athena_numeric::Integer;
+
+        let Some(matrix_ref) = self.matrix_ref_from_slot(slot)
+        else {
+            return Ok(None);
+        };
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows != 1 || shape.cols == 0 {
+            return Ok(None);
+        }
+        let mut values: Vec<i64> = Vec::with_capacity(shape.cols as usize);
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                MatrixEntry::Integer(z) => {
+                    let Some(i) = z.to_i64()
+                    else {
+                        return Ok(None);
+                    };
+                    if !values.contains(&i) {
+                        values.push(i);
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+        let cols = values.len() as u64;
+        let data: Vec<Integer> = values.into_iter().map(Integer::from).collect();
+        let deduped = match MatrixValue::from_integers_row_major(1, cols, data) {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+        let matrix_ref = self.session.matrix_objects.intern(deduped);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }
 
     fn apply_count(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
