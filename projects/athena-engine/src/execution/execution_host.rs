@@ -1831,6 +1831,19 @@ impl<'a> ExecutionHost<'a> {
                         MatrixValue::from_integers_row_major(rows, cols, data).ok()
                     }
                     SemanticOperator::Eye if rows == cols => MatrixValue::identity(parent, rows).ok(),
+                    SemanticOperator::Eye => {
+                        // Rectangular eye: ones on the leading diagonal, zeros elsewhere.
+                        let n = (rows * cols) as usize;
+                        let mut data = Vec::with_capacity(n);
+                        for _ in 0..n {
+                            data.push(Integer::zero());
+                        }
+                        let diag = rows.min(cols);
+                        for i in 0..diag {
+                            data[(i * cols + i) as usize] = Integer::one();
+                        }
+                        MatrixValue::from_integers_row_major(rows, cols, data).ok()
+                    }
                     _ => None,
                 };
                 if let Some(matrix) = built {

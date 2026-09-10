@@ -9,7 +9,7 @@ use crate::{
 };
 
 use super::{
-    evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape, parse_matrix_dims,
+    evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape,
     re_eval_term, rebuild_application, terms::expand_span_3, try_apply_callable,
 };
 
@@ -519,34 +519,12 @@ pub(crate) fn evaluate_sum_terms(session: &mut Session, terms: Vec<TermId>) -> R
     Ok(fold_plus_symbolic(session, items))
 }
 
-/// `Zeros` / `Ones` / `Eye` — 按维度构造有理整数矩阵；非法维度则残差。
+/// `Zeros` / `Ones` / `Eye` residual echo when the host cannot intern a typed `MatrixRef`.
+///
+/// Living 16: numeric constructors are owned by `ExecutionHost::apply_matrix_constructor`.
+/// This helper must not rebuild nested Collection matrices.
 pub(crate) fn evaluate_matrix_constructor_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
-    let Some((rows, cols)) = parse_matrix_dims(session, &terms)
-    else {
-        return Ok(push_semantic(session, op, terms));
-    };
-    let n = match rows.checked_mul(cols) {
-        Some(v) if v <= 4096 => v as usize,
-        _ => return Ok(push_semantic(session, op, terms)),
-    };
-    if n == 0 {
-        return Ok(push_list(session, Vec::new()));
-    }
-    let fill = match op {
-        SemanticOperator::Ones => 1i64,
-        SemanticOperator::Zeros | SemanticOperator::Eye => 0,
-        _ => return Ok(push_semantic(session, op, terms)),
-    };
-    let mut rows_out = Vec::with_capacity(rows as usize);
-    for r in 0..rows {
-        let mut row = Vec::with_capacity(cols as usize);
-        for c in 0..cols {
-            let value = if op == SemanticOperator::Eye && r == c { 1 } else { fill };
-            row.push(session.builder().int(value, Default::default()));
-        }
-        rows_out.push(push_list(session, row));
-    }
-    Ok(push_list(session, rows_out))
+    Ok(push_semantic(session, op, terms))
 }
 
 /// `DiagonalMatrix[{d0,…}]` — 对角元向量构造成方阵；非法则残差。
