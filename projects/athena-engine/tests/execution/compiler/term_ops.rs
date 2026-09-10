@@ -950,6 +950,55 @@ fn compile_and_execute_symbolic_diagonal_matrix_residuals() {
 }
 
 #[test]
+fn compile_and_execute_sum_nested_numeric_via_matrix_ref() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let row0 = session.builder().list(vec![one, two], Default::default());
+    let row1 = session.builder().list(vec![three, four], Default::default());
+    let nested = session.builder().list(vec![row0, row1], Default::default());
+    let term = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Sum), vec![nested], Default::default());
+    let before = session.matrix_objects.len();
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sum");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(session.matrix_objects.len() > before, "nested numeric Sum must intern MatrixRef");
+    match session.arena.get(out) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 2 => {
+            assert!(matches!(session.arena.get(elements[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)));
+            assert!(matches!(session.arena.get(elements[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(6)));
+        }
+        other => panic!("expected column sums {{4, 6}}, got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_sum_nested_symbolic_residuals() {
+    let mut session = Session::new();
+    let a = session.builder().symbol("a", Default::default());
+    let b = session.builder().symbol("b", Default::default());
+    let row = session.builder().list(vec![a, b], Default::default());
+    let nested = session.builder().list(vec![row], Default::default());
+    let term = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Sum), vec![nested], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("sum");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Sum),
+            arguments,
+        }) if arguments.len() == 1 => {}
+        other => panic!("symbolic nested Sum must residual, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_replace_all() {
     let mut session = Session::new();
     let x = session.builder().symbol("x", Default::default());
