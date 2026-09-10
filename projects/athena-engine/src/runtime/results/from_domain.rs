@@ -32,7 +32,9 @@ use crate::{
 /// - 多项式：仅 journal 已接纳且 operational verified 缓存与值对齐时抬 `Exact`/`Full`（附 `AdmittedRelation`）
 /// - 数论可信 kernel（如 gcd）可带 provider stamp 保留 `Exact`（非字段伪造路径）
 /// - 线性代数：跟 `AlgorithmGuarantee`，禁止机器近似抬 Exact
-pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> ComputationResult {
+pub fn computation_from_domain(session: &mut Session, mut domain: DomainResult) -> ComputationResult {
+    // Living 16: Matrix/Dot envelopes published into the session must carry store identity.
+    attach_linear_algebra_matrix_refs(session, &mut domain);
     let mapped = map_domain_meta(session, &domain);
     let value_id = session.insert_value(RuntimeValue::Domain(domain));
     let mut result = ComputationResult::with_status(mapped.status, mapped.coverage)
@@ -54,6 +56,25 @@ pub fn computation_from_domain(session: &mut Session, domain: DomainResult) -> C
         result = result.with_evidence(evidence);
     }
     result
+}
+
+/// Intern owned `Matrix` / `Dot` envelopes so published `MatrixResult` carries `matrix_ref` + revision.
+fn attach_linear_algebra_matrix_refs(session: &mut Session, domain: &mut DomainResult) {
+    let DomainResult::LinearAlgebra(LinearAlgebraResult::Ok { value }) = domain else {
+        return;
+    };
+    let envelope = match value {
+        crate::domains::linear_algebra::LinearAlgebraValue::Matrix(envelope)
+        | crate::domains::linear_algebra::LinearAlgebraValue::Dot(envelope) => envelope,
+        _ => return,
+    };
+    if envelope.matrix_ref.is_some() {
+        return;
+    }
+    let matrix_ref = session.matrix_objects.intern(envelope.value.owning_copy());
+    let revision = session.matrix_objects.revision(matrix_ref).unwrap_or(0);
+    envelope.matrix_ref = Some(matrix_ref);
+    envelope.revision = Some(revision);
 }
 
 struct DomainMeta {

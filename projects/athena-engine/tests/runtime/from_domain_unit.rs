@@ -114,6 +114,7 @@ fn matrix_result_envelope_projects_shape_evidence_and_status() {
     assert_eq!(result.status, ComputationStatus::Exact);
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
     assert!(result.symbolic_term.is_some());
+    assert_eq!(session.matrix_objects.len(), 1, "owned Matrix envelope must be interned");
     assert!(
         result.evidence.iter().any(|e| matches!(
             e,
@@ -123,6 +124,17 @@ fn matrix_result_envelope_projects_shape_evidence_and_status() {
             } if summary.contains("shape=2x2") && summary.contains("guarantee=Exact")
         )),
         "expected shape/guarantee evidence, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=") && summary.contains("revision=")
+        )),
+        "expected matrix_ref/revision evidence, got {:?}",
         result.evidence
     );
 }
@@ -142,6 +154,7 @@ fn dot_matrix_result_envelope_projects_shape_evidence_and_status() {
     assert_eq!(result.status, ComputationStatus::Exact);
     assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Full);
     assert!(result.symbolic_term.is_some());
+    assert_eq!(session.matrix_objects.len(), 1, "owned Dot envelope must be interned");
     assert!(
         result.evidence.iter().any(|e| matches!(
             e,
@@ -151,6 +164,17 @@ fn dot_matrix_result_envelope_projects_shape_evidence_and_status() {
             } if summary.contains("shape=1x1") && summary.contains("guarantee=Exact")
         )),
         "Dot envelope must publish shape/guarantee with the same result, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=") && summary.contains("revision=")
+        )),
+        "Dot envelope must publish matrix_ref/revision, got {:?}",
         result.evidence
     );
 }
@@ -177,6 +201,17 @@ fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
             } if summary.contains("residual_inf=") && summary.contains("conditioning=")
         )),
         "expected residual evidence, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=") && summary.contains("revision=")
+        )),
+        "machine Matrix envelope must publish matrix_ref/revision, got {:?}",
         result.evidence
     );
 }
