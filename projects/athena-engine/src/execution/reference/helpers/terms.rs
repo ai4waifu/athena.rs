@@ -593,7 +593,7 @@ pub(crate) fn linear_algebra_value_symbolic_term(
             };
             Some(session.builder().int(n, Default::default()))
         }
-        LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, matrix).ok(),
+        LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, &matrix.value).ok(),
     }
 }
 
