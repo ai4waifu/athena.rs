@@ -53,7 +53,7 @@ pub struct ExactSolveResult {
     /// 分类。
     pub disposition: SolveDisposition,
     /// 特解（`Unique` / `Infinite` 时存在；列为解向量，shape `n×1`）。
-    pub particular: Option<MatrixValue>,
+    pub particular: Option<MatrixResult>,
     /// 保证级别。
     pub guarantee: AlgorithmGuarantee,
 }
@@ -373,7 +373,7 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
     for (i, &pc) in pivot_cols.iter().enumerate() {
         x[pc as usize] = get_q(&aug, cols, i as u64, n);
     }
-    let particular = MatrixValue::from_rationals_row_major(n, 1, x)?;
+    let particular = MatrixResult::from_owned(MatrixValue::from_rationals_row_major(n, 1, x)?, AlgorithmGuarantee::Exact);
     if free_vars.is_empty() {
         Ok(ExactSolveResult { disposition: SolveDisposition::Unique, particular: Some(particular), guarantee: AlgorithmGuarantee::Exact })
     }
@@ -418,7 +418,7 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
                 let particular = solved.particular.ok_or_else(|| {
                     Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "invert_missing_particular")
                 })?;
-                columns.push(particular.to_rationals_row_major()?);
+                columns.push(particular.value.to_rationals_row_major()?);
             }
             _ => {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)

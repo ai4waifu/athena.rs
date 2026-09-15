@@ -119,7 +119,7 @@ fn l1_exact_rank_det_solve_unique() {
     // [1,2;3,4][1;2]=[5;11]
     assert!(
         matrices_equal(
-            &x,
+            &x.value,
             &MatrixValue::from_rationals_row_major(2, 1, vec![q(1, 1), q(2, 1)]).unwrap(),
             MatrixEqualityKind::ExactMathematical
         )

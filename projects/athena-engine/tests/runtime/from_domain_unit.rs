@@ -71,10 +71,13 @@ fn exact_rank_still_projects_exact_full() {
 
 #[test]
 fn machine_solve_with_solution_projects_list_term() {
-    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_engine::domains::linear_algebra::{MatrixResult, MatrixValue};
 
     let mut session = Session::new();
-    let solution = MatrixValue::from_f64_row_major(2, 1, vec![1.0, 2.0]).expect("column");
+    let solution = MatrixResult::from_owned(
+        MatrixValue::from_f64_row_major(2, 1, vec![1.0, 2.0]).expect("column"),
+        AlgorithmGuarantee::Approximate,
+    );
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
         value: LinearAlgebraValue::MachineSolve(MachineSolveResult {
             disposition: SolveDisposition::Unique,
@@ -83,13 +86,24 @@ fn machine_solve_with_solution_projects_list_term() {
             guarantee: AlgorithmGuarantee::Approximate,
         }),
     });
+    let before = session.matrix_objects.len();
     let result = computation_from_domain(&mut session, domain);
     assert_eq!(result.status, ComputationStatus::Approximate);
+    assert!(session.matrix_objects.len() > before, "MachineSolve solution must be interned");
     let term = result.symbolic_term.expect("machine solve projects list");
     assert!(matches!(
         session.arena.get(term),
         Some(athena_ir::TermNode::Collection { elements, .. }) if elements.len() == 2
     ));
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            athena_engine::runtime::results::ResultEvidence::TrustedKernelSummary { summary, .. }
+                if summary.contains("matrix_ref=")
+        )),
+        "MachineSolve must publish matrix_ref evidence, got {:?}",
+        result.evidence
+    );
 }
 
 #[test]
@@ -175,6 +189,52 @@ fn dot_matrix_result_envelope_projects_shape_evidence_and_status() {
             } if summary.contains("matrix_ref=") && summary.contains("revision=")
         )),
         "Dot envelope must publish matrix_ref/revision, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
+fn exact_solve_particular_projects_matrix_ref_evidence() {
+    use athena_engine::domains::linear_algebra::{ExactSolveResult, MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let particular = MatrixResult::from_owned(
+        MatrixValue::from_integers_row_major(2, 1, vec![Integer::from_i64(1), Integer::from_i64(2)]).expect("col"),
+        AlgorithmGuarantee::Exact,
+    );
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactSolve(ExactSolveResult {
+            disposition: SolveDisposition::Unique,
+            particular: Some(particular),
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let before = session.matrix_objects.len();
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert!(session.matrix_objects.len() > before, "ExactSolve particular must be interned");
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=")
+        )),
+        "ExactSolve must publish matrix_ref evidence, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("shape=2x1")
+        )),
+        "ExactSolve must publish shape evidence, got {:?}",
         result.evidence
     );
 }
