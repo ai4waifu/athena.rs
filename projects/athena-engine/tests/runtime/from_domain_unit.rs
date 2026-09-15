@@ -237,6 +237,17 @@ fn exact_solve_particular_projects_matrix_ref_evidence() {
         "ExactSolve must publish shape evidence, got {:?}",
         result.evidence
     );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("disposition=Unique")
+        )),
+        "ExactSolve must publish disposition evidence, got {:?}",
+        result.evidence
+    );
 }
 
 #[test]
@@ -329,6 +340,7 @@ fn machine_matrix_envelope_projects_approximate_with_residual_evidence() {
 #[test]
 fn inconsistent_exact_solve_projects_empty_list() {
     use athena_engine::domains::linear_algebra::ExactSolveResult;
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
 
     let mut session = Session::new();
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
@@ -344,6 +356,17 @@ fn inconsistent_exact_solve_projects_empty_list() {
         session.arena.get(term),
         Some(athena_ir::TermNode::Collection { elements, .. }) if elements.is_empty()
     ));
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("disposition=Inconsistent")
+        )),
+        "inconsistent ExactSolve must publish disposition evidence, got {:?}",
+        result.evidence
+    );
 }
 
 #[test]
