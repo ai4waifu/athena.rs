@@ -102,10 +102,12 @@ pub enum LinearAlgebraRequest {
         /// 右（对象句柄或符号绑定）。
         rhs: MatrixOperand,
     },
-    /// 零空间基（精确路径，行向量）。
+    /// 零空间基（精确路径）。
     NullSpace {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
+        /// `true` → 列向量基（MATLAB `null`）；`false` → 行向量基（Mathematica `NullSpace`）。
+        column_basis: bool,
     },
     /// 欧几里得 2-范数（精确完美平方）。
     Norm {
@@ -133,7 +135,10 @@ impl LinearAlgebraRequest {
             Self::Trace { matrix } => Self::Trace { matrix: *matrix },
             Self::Dot { lhs, rhs } => Self::Dot { lhs: *lhs, rhs: *rhs },
             Self::Cross { lhs, rhs } => Self::Cross { lhs: *lhs, rhs: *rhs },
-            Self::NullSpace { matrix } => Self::NullSpace { matrix: *matrix },
+            Self::NullSpace { matrix, column_basis } => Self::NullSpace {
+                matrix: *matrix,
+                column_basis: *column_basis,
+            },
             Self::Norm { matrix } => Self::Norm { matrix: *matrix },
         }
     }

@@ -278,14 +278,20 @@ fn run(
             let rhs = rhs.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::dot_outcome(cross(&lhs, &rhs)?))
         }
-        LinearAlgebraRequest::NullSpace { matrix } => {
+        LinearAlgebraRequest::NullSpace { matrix, column_basis } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
             if matrix.parent().element.is_machine() {
                 return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
                     .detail("reason", "machine_nullspace_deferred")
                     .detail("hint", "use exact parent"));
             }
-            Ok(LinearAlgebraValue::ExactNullSpace(nullspace_exact(&matrix)?))
+            let mut ns = nullspace_exact(&matrix)?;
+            if column_basis {
+                // Row basis (Mathematica) → column basis (MATLAB `null`); includes `0×n` → `n×0`.
+                let transposed = super::ops::transpose(&ns.basis.value);
+                ns.basis = MatrixResult::from_owned(transposed, ns.guarantee);
+            }
+            Ok(LinearAlgebraValue::ExactNullSpace(ns))
         }
         LinearAlgebraRequest::Norm { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
