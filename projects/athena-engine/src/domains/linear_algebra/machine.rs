@@ -191,7 +191,7 @@ pub fn solve_lu(lu: &MachineLuFactorization, b: &MatrixValue) -> Result<MachineS
 }
 
 /// Crude κ estimate from `|U_ii|` ratio after partial-pivot LU (Living 16 conditioning witness).
-fn conditioning_from_u_diag(lu: &MachineLuFactorization) -> Option<f64> {
+pub(crate) fn conditioning_from_u_diag(lu: &MachineLuFactorization) -> Option<f64> {
     let n = lu.combined.shape().rows;
     if lu.numerical_rank < n {
         return None;
@@ -350,6 +350,56 @@ pub fn right_solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f6
             numerical_rank,
             pivot_threshold,
         }),
+        guarantee: AlgorithmGuarantee::Approximate,
+    })
+}
+
+/// 机器条件数估计结果。
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MachineCondEstimate {
+    /// `κ` 估计；奇异 / 秩亏时为 `+∞`。
+    pub value: f64,
+    /// 数值秩。
+    pub numerical_rank: u64,
+    /// 保证级别。
+    pub guarantee: AlgorithmGuarantee,
+}
+
+fn matrix_as_machine_f64(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Ok(matrix.owning_copy());
+    }
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    let mut data = Vec::with_capacity((rows * cols) as usize);
+    for i in 0..rows {
+        for j in 0..cols {
+            let v = match matrix.get(i, j)? {
+                super::value::MatrixEntry::Integer(z) => z.to_f64_approximate().ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cond_integer_to_f64")
+                })?,
+                super::value::MatrixEntry::Rational(r) => r.to_f64_approximate().ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cond_rational_to_f64")
+                })?,
+                super::value::MatrixEntry::MachineF64(x) => x,
+            };
+            data.push(v);
+        }
+    }
+    MatrixValue::from_f64_row_major(rows, cols, data)
+}
+
+/// 机器条件数估计（方阵；精确输入先提升到 `f64`）。
+pub fn condition_number_machine(matrix: &MatrixValue, pivot_threshold: f64) -> Result<MachineCondEstimate, Diagnostic> {
+    if !matrix.shape().is_square() {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "cond_requires_square"));
+    }
+    let machine = matrix_as_machine_f64(matrix)?;
+    let lu = lu_partial_pivot(&machine, pivot_threshold)?;
+    let value = conditioning_from_u_diag(&lu).unwrap_or(f64::INFINITY);
+    Ok(MachineCondEstimate {
+        value,
+        numerical_rank: lu.numerical_rank,
         guarantee: AlgorithmGuarantee::Approximate,
     })
 }

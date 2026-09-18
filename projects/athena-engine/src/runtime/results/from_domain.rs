@@ -405,6 +405,12 @@ fn linear_algebra_envelope_meta(
                 summary: format!("rank={} pivot_cols={}", r.rank, r.pivot_cols.len()),
             });
         }
+        LinearAlgebraValue::MachineCond { value, numerical_rank, .. } => {
+            evidence.push(ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary: format!("condition_number={value} numerical_rank={numerical_rank}"),
+            });
+        }
         LinearAlgebraValue::ExactNullSpace(r) => {
             evidence.push(ResultEvidence::TrustedKernelSummary {
                 provider: ResultProviderId::LINEAR_ALGEBRA,
@@ -493,6 +499,7 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
         LinearAlgebraValue::Matrix(envelope) => algorithm_guarantee_status(envelope.guarantee),
         LinearAlgebraValue::ExactRank(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::MachineRank { guarantee, .. } => algorithm_guarantee_status(*guarantee),
+        LinearAlgebraValue::MachineCond { guarantee, .. } => algorithm_guarantee_status(*guarantee),
         LinearAlgebraValue::ExactDet(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactTrace(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactNorm(r) => algorithm_guarantee_status(r.guarantee),

@@ -28,7 +28,10 @@ pub use exact::{
     trace_exact,
 };
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
-pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, right_solve_machine, solve_lu, solve_machine};
+pub use machine::{
+    MachineCondEstimate, MachineLuFactorization, MachineSolveResult, condition_number_machine, lu_partial_pivot, rank_machine,
+    right_solve_machine, solve_lu, solve_machine,
+};
 pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;

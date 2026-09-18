@@ -669,6 +669,53 @@ fn goal_norm_projects_integer() {
 }
 
 #[test]
+fn l1_condition_number_well_conditioned() {
+    use athena_engine::domains::linear_algebra::condition_number_machine;
+
+    let a = MatrixValue::from_f64_row_major(2, 2, vec![2.0, 0.0, 0.0, 2.0]).unwrap();
+    let est = condition_number_machine(&a, 1e-12).unwrap();
+    assert!(est.value.is_finite() && est.value >= 1.0 && est.value < 1.0 + 1e-9);
+    assert_eq!(est.numerical_rank, 2);
+    assert_eq!(est.guarantee, AlgorithmGuarantee::Approximate);
+}
+
+#[test]
+fn l1_condition_number_singular_is_inf() {
+    use athena_engine::domains::linear_algebra::condition_number_machine;
+
+    let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap();
+    let est = condition_number_machine(&a, 1e-12).unwrap();
+    assert!(est.value.is_infinite());
+    assert_eq!(est.numerical_rank, 1);
+}
+
+#[test]
+fn goal_condition_number_projects_machine_float() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
+    use athena_ir::{Atom, TermNode};
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_f64_row_major(2, 2, vec![2.0, 0.0, 0.0, 2.0]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::ConditionNumber { matrix: matrix.into() },
+    )));
+    let result_id = execute_ir_request(&mut session, request).expect("cond goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Approximate);
+    let term = result.symbolic_term.expect("projected");
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Number(n))) => {
+            let v = n.as_machine_f64().expect("machine float");
+            assert!((v - 1.0).abs() < 1e-9);
+        }
+        other => panic!("expected machine number, got {other:?}"),
+    }
+}
+
+#[test]
 fn l1_right_solve_exact_row_vector() {
     // MATLAB `[1, 2] / [[1, 2], [3, 4]]` → `[1, 0]`
     let a = MatrixValue::from_integers_row_major(1, 2, vec![i(1), i(2)]).unwrap();
