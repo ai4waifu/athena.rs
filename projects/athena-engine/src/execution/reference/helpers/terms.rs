@@ -588,7 +588,8 @@ pub(crate) fn linear_algebra_value_symbolic_term(
         LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
         LinearAlgebraValue::ExactNorm(ExactNormResult { value, .. }) => Some(rational_to_term_session(session, value)),
         LinearAlgebraValue::ExactRank(ExactRankResult { rank, .. }) | LinearAlgebraValue::MachineRank { rank, .. } => {
-            let Ok(n) = i64::try_from(*rank) else {
+            let Ok(n) = i64::try_from(*rank)
+            else {
                 return None;
             };
             Some(session.builder().int(n, Default::default()))
@@ -599,13 +600,12 @@ pub(crate) fn linear_algebra_value_symbolic_term(
             // Empty basis (`0×n` row or `n×0` column) projects as `{}` / `[]`, not n empty rows.
             if basis.value.shape().is_empty() {
                 Some(crate::runtime::values::arena::push_list(session, Vec::new()))
-            } else {
+            }
+            else {
                 matrix_to_nested_list_session(session, &basis.value).ok()
             }
         }
-        LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: Some(m), .. }) => {
-            matrix_to_nested_list_session(session, &m.value).ok()
-        }
+        LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: Some(m), .. }) => matrix_to_nested_list_session(session, &m.value).ok(),
         LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: None, disposition, .. }) => {
             solve_disposition_residual_term(session, "Inverse", disposition)
         }
@@ -618,15 +618,14 @@ fn solve_disposition_residual_term(
     head: &str,
     disposition: &crate::domains::linear_algebra::SolveDisposition,
 ) -> Option<TermId> {
-    use crate::domains::linear_algebra::SolveDisposition;
-    use crate::runtime::values::arena::{push_extension, push_list};
+    use crate::{
+        domains::linear_algebra::SolveDisposition,
+        runtime::values::arena::{push_extension, push_list},
+    };
 
     match disposition {
         SolveDisposition::Inconsistent => Some(push_list(session, Vec::new())),
-        SolveDisposition::Unique
-        | SolveDisposition::Infinite { .. }
-        | SolveDisposition::Singular
-        | SolveDisposition::ResourceLimited => {
+        SolveDisposition::Unique | SolveDisposition::Infinite { .. } | SolveDisposition::Singular | SolveDisposition::ResourceLimited => {
             let tag = match disposition {
                 SolveDisposition::Unique => "Unique",
                 SolveDisposition::Infinite { .. } => "Infinite",
@@ -661,8 +660,8 @@ pub(crate) fn domain_request_residual_term(session: &mut Session, domain: &crate
 
 /// 线性代数 Err 是否因矩阵绑定缺失（可 Own 回声，而非输入形状硬失败）。
 pub(crate) fn linear_algebra_missing_binding(domain: &crate::domains::dispatch::DomainResult) -> bool {
-    use athena_types::DiagnosticValue;
     use crate::domains::{dispatch::DomainResult, linear_algebra::LinearAlgebraResult};
+    use athena_types::DiagnosticValue;
     match domain {
         DomainResult::LinearAlgebra(LinearAlgebraResult::Err { diagnostic }) => {
             matches!(diagnostic.details.get("reason"), Some(DiagnosticValue::Text(reason)) if reason == "missing_matrix_binding")
@@ -675,8 +674,10 @@ fn linear_algebra_request_residual_term(
     session: &mut Session,
     request: &crate::domains::linear_algebra::LinearAlgebraRequest,
 ) -> Option<TermId> {
-    use crate::domains::linear_algebra::{LinearAlgebraRequest, MatrixOperand};
-    use crate::runtime::values::arena::push_extension;
+    use crate::{
+        domains::linear_algebra::{LinearAlgebraRequest, MatrixOperand},
+        runtime::values::arena::push_extension,
+    };
 
     let matrix_op_term = |session: &mut Session, op: MatrixOperand| -> Option<TermId> {
         match op {
@@ -690,6 +691,7 @@ fn linear_algebra_request_residual_term(
 
     let (head, args) = match request {
         LinearAlgebraRequest::Transpose { matrix } => ("Transpose", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::ConjugateTranspose { matrix } => ("ConjugateTranspose", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Det { matrix } => ("Det", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Rank { matrix } => ("MatrixRank", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Inverse { matrix } => ("Inverse", vec![matrix_op_term(session, *matrix)?]),
@@ -712,12 +714,15 @@ fn linear_algebra_request_residual_term(
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Cross { lhs, rhs } => ("Cross", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
-        LinearAlgebraRequest::Kronecker { lhs, rhs } => ("KroneckerProduct", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Kronecker { lhs, rhs } => {
+            ("KroneckerProduct", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?])
+        }
         LinearAlgebraRequest::IsDiagonal { matrix } => ("IsDiagonalMatrix", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::IsTriangular { matrix, lower } => {
             if *lower {
                 ("IsLowerTriangular", vec![matrix_op_term(session, *matrix)?])
-            } else {
+            }
+            else {
                 ("IsUpperTriangular", vec![matrix_op_term(session, *matrix)?])
             }
         }

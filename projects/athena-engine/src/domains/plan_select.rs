@@ -1,4 +1,4 @@
-//! `DomainPlan` 的 `SelectRepresentation`。
+﻿//! `DomainPlan` 的 `SelectRepresentation`。
 //!
 //! 记录请求当前活跃的 `DomainObject` / 项表示族。
 //! 引导期：确认每个领域唯一支持的表示族（无静默算法分支）。
@@ -76,6 +76,7 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
     };
     match *request {
         LinearAlgebraRequest::Transpose { matrix }
+        | LinearAlgebraRequest::ConjugateTranspose { matrix }
         | LinearAlgebraRequest::Rank { matrix }
         | LinearAlgebraRequest::Det { matrix }
         | LinearAlgebraRequest::Rref { matrix }

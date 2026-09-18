@@ -1,4 +1,4 @@
-//! `DomainPlan` 的 `Normalize` 强制转换。
+﻿//! `DomainPlan` 的 `Normalize` 强制转换。
 //!
 //! 校验 `DomainObject` 句柄与微积分 `TermId`，并在 `CallDomainProvider` 之前
 //! 将多项式引用改写到规范驻留标识。
@@ -183,6 +183,7 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
     };
     match *request {
         LinearAlgebraRequest::Transpose { matrix }
+        | LinearAlgebraRequest::ConjugateTranspose { matrix }
         | LinearAlgebraRequest::Rank { matrix }
         | LinearAlgebraRequest::Det { matrix }
         | LinearAlgebraRequest::Rref { matrix }

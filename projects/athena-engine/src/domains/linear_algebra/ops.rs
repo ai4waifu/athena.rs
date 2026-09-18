@@ -78,6 +78,14 @@ pub fn transpose(matrix: &MatrixValue) -> MatrixValue {
     matrix.transpose_view()
 }
 
+/// 共轭转置。
+///
+/// 当前 parent 只有实数元素（整数 / 有理 / 机器实数），共轭是恒等，结果等于 [	ranspose]。
+/// 复数 parent 落地后必须先共轭再转置，不得继续把本函数当成实数别名。
+pub fn conjugate_transpose(matrix: &MatrixValue) -> MatrixValue {
+    transpose(matrix)
+}
+
 /// 下三角（含对角；严格上三角置零）。
 pub fn tril(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     triangular_mask(matrix, true)
@@ -103,7 +111,8 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
                             MatrixEntry::Integer(x) => data.push(x),
                             _ => unreachable!(),
                         }
-                    } else {
+                    }
+                    else {
                         match &zero {
                             MatrixEntry::Integer(z) => data.push(crate::runtime::values::numeric_clone::clone_integer(z)),
                             _ => unreachable!(),
@@ -123,7 +132,8 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
                             MatrixEntry::Rational(x) => data.push(x),
                             _ => unreachable!(),
                         }
-                    } else {
+                    }
+                    else {
                         match &zero {
                             MatrixEntry::Rational(z) => data.push(crate::runtime::values::numeric_clone::clone_rational(z)),
                             _ => unreachable!(),
@@ -143,7 +153,8 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
                             MatrixEntry::MachineF64(x) => data.push(x),
                             _ => unreachable!(),
                         }
-                    } else {
+                    }
+                    else {
                         data.push(0.0);
                     }
                 }
@@ -234,12 +245,10 @@ pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Di
     let ac = lhs.shape().cols;
     let br = rhs.shape().rows;
     let bc = rhs.shape().cols;
-    let out_rows = ar
-        .checked_mul(br)
-        .ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_rows_overflow"))?;
-    let out_cols = ac
-        .checked_mul(bc)
-        .ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_cols_overflow"))?;
+    let out_rows =
+        ar.checked_mul(br).ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_rows_overflow"))?;
+    let out_cols =
+        ac.checked_mul(bc).ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_cols_overflow"))?;
     match lhs.parent().element {
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
@@ -533,9 +542,9 @@ pub fn elementwise_power(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixV
                         MatrixEntry::Integer(x) => x,
                         _ => unreachable!(),
                     };
-                    let powered = a.pow(&b).map_err(|_| {
-                        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_integer")
-                    })?;
+                    let powered = a
+                        .pow(&b)
+                        .map_err(|_| Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "elementwise_power_integer"))?;
                     data.push(powered);
                 }
             }
@@ -904,13 +913,7 @@ pub fn pad_left_row_vector(matrix: &MatrixValue, n: u64) -> Result<MatrixValue, 
     if cols >= n {
         return slice_matrix(
             matrix,
-            &IndexSpec::Slice {
-                rows: super::index::AxisRange::All,
-                cols: super::index::AxisRange::Range {
-                    start: cols - n,
-                    end: cols,
-                },
-            },
+            &IndexSpec::Slice { rows: super::index::AxisRange::All, cols: super::index::AxisRange::Range { start: cols - n, end: cols } },
         );
     }
     let pad = n - cols;

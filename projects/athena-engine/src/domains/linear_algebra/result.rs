@@ -12,8 +12,8 @@ use super::{
     matrix_result::MatrixResult,
     object_ref::{MatrixObjectStore, MatrixRef},
     ops::{
-        cross, dot, elementwise_divide, elementwise_power, flag_matrix, hadamard, index_scalar, is_diagonal, is_lower_triangular,
-        is_symmetric, is_upper_triangular, kronecker, matmul, transpose, tril, triu,
+        conjugate_transpose, cross, dot, elementwise_divide, elementwise_power, flag_matrix, hadamard, index_scalar, is_diagonal,
+        is_lower_triangular, is_symmetric, is_upper_triangular, kronecker, matmul, transpose, tril, triu,
     },
     request::LinearAlgebraRequest,
     status::AlgorithmGuarantee,
@@ -84,11 +84,7 @@ impl LinearAlgebraValue {
     }
 
     fn owned_envelope(value: MatrixValue) -> MatrixResult {
-        let guarantee = if value.parent().element.is_machine() {
-            AlgorithmGuarantee::Approximate
-        } else {
-            AlgorithmGuarantee::Exact
-        };
+        let guarantee = if value.parent().element.is_machine() { AlgorithmGuarantee::Approximate } else { AlgorithmGuarantee::Exact };
         MatrixResult::from_owned(value, guarantee)
     }
 
@@ -98,11 +94,9 @@ impl LinearAlgebraValue {
             Self::Matrix(m) => Self::Matrix(m.owning_copy()),
             Self::ExactRank(r) => Self::ExactRank(*r),
             Self::MachineRank { rank, guarantee } => Self::MachineRank { rank: *rank, guarantee: *guarantee },
-            Self::MachineCond { value, numerical_rank, guarantee } => Self::MachineCond {
-                value: *value,
-                numerical_rank: *numerical_rank,
-                guarantee: *guarantee,
-            },
+            Self::MachineCond { value, numerical_rank, guarantee } => {
+                Self::MachineCond { value: *value, numerical_rank: *numerical_rank, guarantee: *guarantee }
+            }
             Self::ExactDet(r) => Self::ExactDet(r.owning_copy()),
             Self::ExactTrace(r) => Self::ExactTrace(r.owning_copy()),
             Self::ExactNorm(r) => Self::ExactNorm(r.owning_copy()),
@@ -135,6 +129,7 @@ pub enum LinearAlgebraResult {
 pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
     match request {
         LinearAlgebraRequest::Transpose { .. } => "transpose",
+        LinearAlgebraRequest::ConjugateTranspose { .. } => "conjugate_transpose",
         LinearAlgebraRequest::Index { .. } => "index",
         LinearAlgebraRequest::MatMul { .. } => "matmul",
         LinearAlgebraRequest::Hadamard { .. } => "hadamard",
@@ -196,6 +191,10 @@ fn run(
         LinearAlgebraRequest::Transpose { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::matrix_outcome(transpose(&matrix)))
+        }
+        LinearAlgebraRequest::ConjugateTranspose { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(conjugate_transpose(&matrix)))
         }
         LinearAlgebraRequest::Index { matrix, row, col } => {
             let matrix = resolve(store, matrix)?;
@@ -328,13 +327,8 @@ fn run(
         }
         LinearAlgebraRequest::ConditionNumber { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            let MachineCondEstimate { value, numerical_rank, guarantee } =
-                condition_number_machine(&matrix, DEFAULT_PIVOT_THRESHOLD)?;
-            Ok(LinearAlgebraValue::MachineCond {
-                value,
-                numerical_rank,
-                guarantee,
-            })
+            let MachineCondEstimate { value, numerical_rank, guarantee } = condition_number_machine(&matrix, DEFAULT_PIVOT_THRESHOLD)?;
+            Ok(LinearAlgebraValue::MachineCond { value, numerical_rank, guarantee })
         }
         LinearAlgebraRequest::Tril { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
@@ -356,11 +350,7 @@ fn run(
         }
         LinearAlgebraRequest::IsTriangular { matrix, lower } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            let ok = if lower {
-                is_lower_triangular(&matrix)?
-            } else {
-                is_upper_triangular(&matrix)?
-            };
+            let ok = if lower { is_lower_triangular(&matrix)? } else { is_upper_triangular(&matrix)? };
             Ok(LinearAlgebraValue::dot_outcome(flag_matrix(ok)?))
         }
         LinearAlgebraRequest::IsSymmetric { matrix } => {
