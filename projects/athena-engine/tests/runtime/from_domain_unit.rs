@@ -32,6 +32,56 @@ fn machine_rank_projects_approximate_full_coverage() {
 }
 
 #[test]
+fn singular_machine_solve_projects_disposition_and_witness_evidence() {
+    use athena_engine::domains::linear_algebra::MachineSolveWitness;
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+
+    let mut session = Session::new();
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::MachineSolve(MachineSolveResult {
+            disposition: SolveDisposition::Singular,
+            solution: None,
+            witness: Some(MachineSolveWitness {
+                residual_inf: f64::NAN,
+                numerical_rank: 1,
+                pivot_threshold: 1e-12,
+            }),
+            guarantee: AlgorithmGuarantee::Approximate,
+        }),
+    });
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Partial);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("disposition=Singular")
+        )),
+        "Singular MachineSolve must publish disposition, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("numerical_rank=1") && summary.contains("pivot_threshold=")
+        )),
+        "Singular MachineSolve must publish witness evidence, got {:?}",
+        result.evidence
+    );
+    let term = result.symbolic_term.expect("singular projects residual Extension");
+    assert!(matches!(
+        session.arena.get(term),
+        Some(athena_ir::TermNode::Application { .. })
+    ));
+}
+
+#[test]
 fn machine_solve_projects_approximate_full_coverage() {
     let mut session = Session::new();
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {

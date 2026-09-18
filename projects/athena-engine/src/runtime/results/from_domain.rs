@@ -380,6 +380,15 @@ fn linear_algebra_envelope_meta(
                 provider: ResultProviderId::LINEAR_ALGEBRA,
                 summary: solve_disposition_summary(&r.disposition),
             });
+            if let Some(witness) = &r.witness {
+                evidence.push(ResultEvidence::TrustedKernelSummary {
+                    provider: ResultProviderId::LINEAR_ALGEBRA,
+                    summary: format!(
+                        "numerical_rank={} pivot_threshold={} residual_inf={}",
+                        witness.numerical_rank, witness.pivot_threshold, witness.residual_inf
+                    ),
+                });
+            }
         }
         LinearAlgebraValue::ExactRref(r) => {
             evidence.push(ResultEvidence::TrustedKernelSummary {
