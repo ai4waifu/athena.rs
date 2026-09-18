@@ -683,6 +683,7 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::Norm { matrix } => ("Norm", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::NullSpace { matrix } => ("NullSpace", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Solve { a, b } => ("LinearSolve", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
+        LinearAlgebraRequest::RightSolve { a, b } => ("Mrdivide", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
         LinearAlgebraRequest::MatMul { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Hadamard { lhs, rhs } => ("DotTimes", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::ElementwiseDivide { lhs, rhs } => {

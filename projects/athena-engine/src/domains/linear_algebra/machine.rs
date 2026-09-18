@@ -243,6 +243,117 @@ pub fn solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> 
     Ok(result)
 }
 
+/// 右除求解 `X B = A`（机器路径）：`Bᵀ Y = Aᵀ` 再转置。
+pub fn right_solve_machine(a: &MatrixValue, b: &MatrixValue, pivot_threshold: f64) -> Result<MachineSolveResult, Diagnostic> {
+    use super::ops::transpose;
+
+    if !a.parent().element.is_machine() || !b.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_machine_requires_machine"));
+    }
+    if a.shape().cols != b.shape().cols {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "right_solve_cols_mismatch"));
+    }
+    if !b.shape().is_square() {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "right_solve_b_requires_square"));
+    }
+    let at = transpose(a);
+    let bt = transpose(b);
+    let n = bt.shape().rows;
+    let m = at.shape().cols;
+    let mut y_cols: Vec<Vec<f64>> = Vec::with_capacity(m as usize);
+    let mut last_witness: Option<MachineSolveWitness> = None;
+    for j in 0..m {
+        let mut col_data = Vec::with_capacity(n as usize);
+        for i in 0..n {
+            match at.get(i, j)? {
+                super::value::MatrixEntry::MachineF64(x) => col_data.push(x),
+                _ => {
+                    return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "right_solve_at_not_machine"));
+                }
+            }
+        }
+        let rhs = MatrixValue::from_f64_row_major(n, 1, col_data)?;
+        let solved = solve_machine(&bt, &rhs, pivot_threshold)?;
+        match solved.disposition {
+            SolveDisposition::Unique => {
+                let particular = solved.solution.ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "right_solve_missing_solution")
+                })?;
+                y_cols.push(particular.value.to_f64_row_major()?);
+                last_witness = solved.witness;
+            }
+            SolveDisposition::Singular => {
+                return Ok(MachineSolveResult {
+                    disposition: SolveDisposition::Singular,
+                    solution: None,
+                    witness: solved.witness,
+                    guarantee: AlgorithmGuarantee::Approximate,
+                });
+            }
+            SolveDisposition::Inconsistent => {
+                return Ok(MachineSolveResult {
+                    disposition: SolveDisposition::Inconsistent,
+                    solution: None,
+                    witness: solved.witness,
+                    guarantee: AlgorithmGuarantee::Approximate,
+                });
+            }
+            SolveDisposition::Infinite { free_vars } => {
+                return Ok(MachineSolveResult {
+                    disposition: SolveDisposition::Infinite { free_vars },
+                    solution: None,
+                    witness: solved.witness,
+                    guarantee: AlgorithmGuarantee::Approximate,
+                });
+            }
+            SolveDisposition::ResourceLimited => {
+                return Ok(MachineSolveResult {
+                    disposition: SolveDisposition::ResourceLimited,
+                    solution: None,
+                    witness: solved.witness,
+                    guarantee: AlgorithmGuarantee::Approximate,
+                });
+            }
+        }
+    }
+    let mut y_data = Vec::with_capacity((n * m) as usize);
+    for i in 0..n {
+        for j in 0..m {
+            y_data.push(y_cols[j as usize][i as usize]);
+        }
+    }
+    let y = MatrixValue::from_f64_row_major(n, m, y_data)?;
+    let x = transpose(&y);
+    // Residual of X B − A in ∞-norm.
+    let xb = super::ops::matmul(&x, b)?;
+    let mut residual = 0.0_f64;
+    for i in 0..a.shape().rows {
+        for j in 0..a.shape().cols {
+            let xvi = match xb.get(i, j)? {
+                super::value::MatrixEntry::MachineF64(v) => v,
+                _ => unreachable!(),
+            };
+            let avi = match a.get(i, j)? {
+                super::value::MatrixEntry::MachineF64(v) => v,
+                _ => unreachable!(),
+            };
+            residual = residual.max((xvi - avi).abs());
+        }
+    }
+    let numerical_rank = last_witness.map(|w| w.numerical_rank).unwrap_or(n);
+    let solution = MatrixResult::from_owned(x, AlgorithmGuarantee::Approximate).with_machine_witness(residual, None);
+    Ok(MachineSolveResult {
+        disposition: SolveDisposition::Unique,
+        solution: Some(solution),
+        witness: Some(MachineSolveWitness {
+            residual_inf: Some(residual),
+            numerical_rank,
+            pivot_threshold,
+        }),
+        guarantee: AlgorithmGuarantee::Approximate,
+    })
+}
+
 /// 机器数值秩（经 LU）。
 pub fn rank_machine(matrix: &MatrixValue, pivot_threshold: f64) -> Result<(u64, AlgorithmGuarantee), Diagnostic> {
     let lu = lu_partial_pivot(matrix, pivot_threshold)?;

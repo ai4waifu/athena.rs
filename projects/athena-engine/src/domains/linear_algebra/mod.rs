@@ -24,10 +24,10 @@ pub mod value;
 pub use equality::{MatrixEqualityKind, matrices_equal};
 pub use exact::{
     ExactDetResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult, det_bareiss,
-    invert_exact, norm2_exact, nullspace_exact, rank_exact, rref_rational, solve_exact, trace_exact,
+    invert_exact, norm2_exact, nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
 };
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
-pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, solve_lu, solve_machine};
+pub use machine::{MachineLuFactorization, MachineSolveResult, lu_partial_pivot, rank_machine, right_solve_machine, solve_lu, solve_machine};
 pub use matrix_result::MatrixResult;
 pub use object_ref::{MatrixObjectStore, MatrixRef};
 pub use operand::MatrixOperand;
