@@ -147,6 +147,7 @@ fn l1_machine_solve_singular_rank_deficient() {
     assert_eq!(sol.disposition, SolveDisposition::Singular);
     assert!(sol.solution.is_none());
     let w = sol.witness.expect("singular carries witness");
+    assert!(w.residual_inf.is_none());
     assert_eq!(w.numerical_rank, 1);
     assert_eq!(sol.guarantee, AlgorithmGuarantee::Approximate);
 }
@@ -158,7 +159,7 @@ fn l1_machine_solve_with_residual() {
     let sol = solve_machine(&a, &b, 1e-12).unwrap();
     assert_eq!(sol.disposition, SolveDisposition::Unique);
     let w = sol.witness.unwrap();
-    assert!(w.residual_inf < 1e-9);
+    assert!(w.residual_inf.expect("unique carries residual") < 1e-9);
     assert_eq!(w.numerical_rank, 2);
     assert_eq!(sol.guarantee, AlgorithmGuarantee::Approximate);
 }
@@ -318,6 +319,42 @@ fn goal_rank_projects_integer_via_execution() {
     let result_id = execute_ir_request(&mut session, request).expect("rank goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     assert!(matches!(session.arena.get(term), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+}
+
+#[test]
+fn goal_machine_solve_singular_projects_residual() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request, runtime::values::arena::application_display_name};
+    use athena_ir::Atom;
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_f64_row_major(2, 2, vec![1.0, 2.0, 2.0, 4.0]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_f64_row_major(2, 1, vec![1.0, 0.0]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve {
+        a: a.into(),
+        b: b.into(),
+    })));
+    let result_id = match execute_ir_request(&mut session, request) {
+        Ok(id) => id,
+        Err(err) => panic!("machine singular goal failed: {err}"),
+    };
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Partial);
+    let term = result.symbolic_term.expect("singular residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("LinearSolve"));
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { arguments, .. }) if arguments.len() == 1 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(athena_ir::TermNode::Atom(Atom::Symbol(_)))
+            ));
+        }
+        other => panic!("expected LinearSolve[Singular], got {other:?}"),
+    }
 }
 
 #[test]

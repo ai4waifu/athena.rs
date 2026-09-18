@@ -86,10 +86,13 @@ pub fn adapt_machine_linear_solve(
         }
         _ => Vec::new(),
     };
-    let residual = result.witness.as_ref().map(|w| ResidualCertificate {
-        residual: values.intern(BindingValue::MachineF64(w.residual_inf)),
-        residual_is_zero: w.residual_inf.abs() <= w.pivot_threshold,
-        condition_note: Some(format!("numerical_rank={}", w.numerical_rank)),
+    let residual = result.witness.as_ref().and_then(|w| {
+        let residual_inf = w.residual_inf?;
+        Some(ResidualCertificate {
+            residual: values.intern(BindingValue::MachineF64(residual_inf)),
+            residual_is_zero: residual_inf.abs() <= w.pivot_threshold,
+            condition_note: Some(format!("numerical_rank={}", w.numerical_rank)),
+        })
     });
     let frontier = coverage_frontier(&coverage);
     Ok(LinearAdaptedSolution {

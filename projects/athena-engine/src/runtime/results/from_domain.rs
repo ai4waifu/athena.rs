@@ -381,11 +381,15 @@ fn linear_algebra_envelope_meta(
                 summary: solve_disposition_summary(&r.disposition),
             });
             if let Some(witness) = &r.witness {
+                let residual = match witness.residual_inf {
+                    Some(v) => format!("residual_inf={v}"),
+                    None => "residual_inf=none".to_string(),
+                };
                 evidence.push(ResultEvidence::TrustedKernelSummary {
                     provider: ResultProviderId::LINEAR_ALGEBRA,
                     summary: format!(
-                        "numerical_rank={} pivot_threshold={} residual_inf={}",
-                        witness.numerical_rank, witness.pivot_threshold, witness.residual_inf
+                        "numerical_rank={} pivot_threshold={} {residual}",
+                        witness.numerical_rank, witness.pivot_threshold
                     ),
                 });
             }
