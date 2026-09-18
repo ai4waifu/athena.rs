@@ -311,6 +311,50 @@ fn exact_solve_particular_projects_matrix_ref_evidence() {
 }
 
 #[test]
+fn exact_nullspace_projects_nullity_and_matrix_ref_evidence() {
+    use athena_engine::domains::linear_algebra::{ExactNullSpaceResult, MatrixResult, MatrixValue};
+    use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};
+    use athena_numeric::Integer;
+
+    let mut session = Session::new();
+    let basis = MatrixValue::from_integers_row_major(1, 2, vec![Integer::from_i64(-2), Integer::from_i64(1)]).expect("basis");
+    let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
+        value: LinearAlgebraValue::ExactNullSpace(ExactNullSpaceResult {
+            basis: MatrixResult::from_owned(basis, AlgorithmGuarantee::Exact),
+            free_cols: vec![1],
+            nullity: 1,
+            guarantee: AlgorithmGuarantee::Exact,
+        }),
+    });
+    let before = session.matrix_objects.len();
+    let result = computation_from_domain(&mut session, domain);
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert!(session.matrix_objects.len() > before, "ExactNullSpace basis must be interned");
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("nullity=1") && summary.contains("free_cols=")
+        )),
+        "ExactNullSpace must publish nullity/free_cols, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary,
+            } if summary.contains("matrix_ref=") && summary.contains("revision=")
+        )),
+        "ExactNullSpace must publish matrix_ref/revision, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn exact_rref_envelope_projects_matrix_ref_evidence() {
     use athena_engine::domains::linear_algebra::{ExactRrefResult, MatrixResult, MatrixValue};
     use athena_engine::runtime::results::{ResultEvidence, ResultProviderId};

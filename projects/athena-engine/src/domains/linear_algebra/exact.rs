@@ -71,6 +71,19 @@ pub struct ExactRrefResult {
     pub guarantee: AlgorithmGuarantee,
 }
 
+/// 精确零空间基结果（Living 16：基矩阵 + nullity / free_cols 证据）。
+#[derive(Debug, PartialEq)]
+pub struct ExactNullSpaceResult {
+    /// 零空间基（行向量；满秩时为 `0×n`）。
+    pub basis: MatrixResult,
+    /// 自由列（0-based）。
+    pub free_cols: Vec<u64>,
+    /// 零空间维数（= `free_cols.len()` = `basis` 行数）。
+    pub nullity: u64,
+    /// 保证级别。
+    pub guarantee: AlgorithmGuarantee,
+}
+
 impl ExactDetResult {
     /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
@@ -107,6 +120,18 @@ impl ExactRrefResult {
     /// Owning 复制（禁止默认 `Clone`）。
     pub fn owning_copy(&self) -> Self {
         Self { matrix: self.matrix.owning_copy(), pivot_cols: self.pivot_cols.clone(), rank: self.rank, guarantee: self.guarantee }
+    }
+}
+
+impl ExactNullSpaceResult {
+    /// Owning 复制（禁止默认 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            basis: self.basis.owning_copy(),
+            free_cols: self.free_cols.clone(),
+            nullity: self.nullity,
+            guarantee: self.guarantee,
+        }
     }
 }
 
@@ -509,7 +534,7 @@ fn vector_rationals_any(matrix: &MatrixValue) -> Result<Vec<Rational>, Diagnosti
 }
 
 /// 精确零空间基：RREF 自由列各生成一个行向量（Mathematica `NullSpace` 形状）。
-pub fn nullspace_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+pub fn nullspace_exact(matrix: &MatrixValue) -> Result<ExactNullSpaceResult, Diagnostic> {
     if matrix.parent().element.is_machine() {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "nullspace_exact_rejects_machine"));
     }
@@ -522,8 +547,15 @@ pub fn nullspace_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> 
         }
     }
     let free_cols: Vec<u64> = (0..cols).filter(|&j| !is_pivot[j as usize]).collect();
+    let nullity = free_cols.len() as u64;
     if free_cols.is_empty() {
-        return MatrixValue::from_rationals_row_major(0, cols, Vec::new());
+        let basis = MatrixResult::from_owned(MatrixValue::from_rationals_row_major(0, cols, Vec::new())?, AlgorithmGuarantee::Exact);
+        return Ok(ExactNullSpaceResult {
+            basis,
+            free_cols,
+            nullity,
+            guarantee: AlgorithmGuarantee::Exact,
+        });
     }
     let rref_rats = rref.matrix.value.to_rationals_row_major()?;
     let rref_cols = rref.matrix.value.shape().cols;
@@ -539,5 +571,14 @@ pub fn nullspace_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> 
         }
         data.append(&mut row);
     }
-    MatrixValue::from_rationals_row_major(free_cols.len() as u64, cols, data)
+    let basis = MatrixResult::from_owned(
+        MatrixValue::from_rationals_row_major(free_cols.len() as u64, cols, data)?,
+        AlgorithmGuarantee::Exact,
+    );
+    Ok(ExactNullSpaceResult {
+        basis,
+        free_cols,
+        nullity,
+        guarantee: AlgorithmGuarantee::Exact,
+    })
 }
