@@ -569,8 +569,8 @@ pub(crate) fn linear_algebra_value_symbolic_term(
     value: &crate::domains::linear_algebra::LinearAlgebraValue,
 ) -> Option<TermId> {
     use crate::domains::linear_algebra::{
-        ExactDetResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult, ExactTraceResult,
-        LinearAlgebraValue, MachineSolveResult,
+        ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
+        ExactTraceResult, LinearAlgebraValue, MachineSolveResult,
     };
 
     match value {
@@ -578,11 +578,11 @@ pub(crate) fn linear_algebra_value_symbolic_term(
         LinearAlgebraValue::Dot(m) => matrix_to_dot_term_session(session, &m.value).ok(),
         LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: Some(m), .. }) => matrix_to_nested_list_session(session, &m.value).ok(),
         LinearAlgebraValue::ExactSolve(ExactSolveResult { particular: None, disposition, .. }) => {
-            solve_disposition_residual_term(session, disposition)
+            solve_disposition_residual_term(session, "LinearSolve", disposition)
         }
         LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: Some(m), .. }) => matrix_to_nested_list_session(session, &m.value).ok(),
         LinearAlgebraValue::MachineSolve(MachineSolveResult { solution: None, disposition, .. }) => {
-            solve_disposition_residual_term(session, disposition)
+            solve_disposition_residual_term(session, "LinearSolve", disposition)
         }
         LinearAlgebraValue::ExactDet(ExactDetResult { det, .. }) => Some(rational_to_term_session(session, det)),
         LinearAlgebraValue::ExactTrace(ExactTraceResult { value, .. }) => Some(rational_to_term_session(session, value)),
@@ -595,12 +595,19 @@ pub(crate) fn linear_algebra_value_symbolic_term(
         }
         LinearAlgebraValue::ExactRref(ExactRrefResult { matrix, .. }) => matrix_to_nested_list_session(session, &matrix.value).ok(),
         LinearAlgebraValue::ExactNullSpace(ExactNullSpaceResult { basis, .. }) => matrix_to_nested_list_session(session, &basis.value).ok(),
+        LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: Some(m), .. }) => {
+            matrix_to_nested_list_session(session, &m.value).ok()
+        }
+        LinearAlgebraValue::ExactInverse(ExactInverseResult { inverse: None, disposition, .. }) => {
+            solve_disposition_residual_term(session, "Inverse", disposition)
+        }
     }
 }
 
-/// 无特解 / 无机器解时的诚实残差：不一致为空 List，其余为 `LinearSolve[Disposition]` Extension。
+/// 无矩阵载荷时的诚实残差：不一致为空 List，其余为 `Head[Disposition]` Extension。
 fn solve_disposition_residual_term(
     session: &mut Session,
+    head: &str,
     disposition: &crate::domains::linear_algebra::SolveDisposition,
 ) -> Option<TermId> {
     use crate::domains::linear_algebra::SolveDisposition;
@@ -619,7 +626,7 @@ fn solve_disposition_residual_term(
                 SolveDisposition::ResourceLimited => "ResourceLimited",
                 SolveDisposition::Inconsistent => unreachable!(),
             };
-            let op = session.extensions.intern("LinearSolve");
+            let op = session.extensions.intern(head);
             let arg = session.builder().symbol(tag, Default::default());
             Some(push_extension(session, op, vec![arg]))
         }

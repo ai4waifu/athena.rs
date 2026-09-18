@@ -68,6 +68,10 @@ fn attach_linear_algebra_matrix_refs(session: &mut Session, domain: &mut DomainR
         | crate::domains::linear_algebra::LinearAlgebraValue::Dot(envelope) => envelope,
         crate::domains::linear_algebra::LinearAlgebraValue::ExactRref(r) => &mut r.matrix,
         crate::domains::linear_algebra::LinearAlgebraValue::ExactNullSpace(r) => &mut r.basis,
+        crate::domains::linear_algebra::LinearAlgebraValue::ExactInverse(r) => match &mut r.inverse {
+            Some(envelope) => envelope,
+            None => return,
+        },
         crate::domains::linear_algebra::LinearAlgebraValue::ExactSolve(r) => match &mut r.particular {
             Some(envelope) => envelope,
             None => return,
@@ -407,6 +411,12 @@ fn linear_algebra_envelope_meta(
                 summary: format!("nullity={} free_cols={:?}", r.nullity, r.free_cols),
             });
         }
+        LinearAlgebraValue::ExactInverse(r) => {
+            evidence.push(ResultEvidence::TrustedKernelSummary {
+                provider: ResultProviderId::LINEAR_ALGEBRA,
+                summary: solve_disposition_summary(&r.disposition),
+            });
+        }
         _ => {}
     }
 
@@ -414,6 +424,10 @@ fn linear_algebra_envelope_meta(
         LinearAlgebraValue::Matrix(envelope) | LinearAlgebraValue::Dot(envelope) => envelope,
         LinearAlgebraValue::ExactRref(r) => &r.matrix,
         LinearAlgebraValue::ExactNullSpace(r) => &r.basis,
+        LinearAlgebraValue::ExactInverse(r) => match &r.inverse {
+            Some(envelope) => envelope,
+            None => return (Vec::new(), evidence),
+        },
         LinearAlgebraValue::ExactSolve(r) => match &r.particular {
             Some(envelope) => envelope,
             None => return (Vec::new(), evidence),
@@ -485,6 +499,15 @@ fn linear_algebra_status_coverage(value: &crate::domains::linear_algebra::Linear
         LinearAlgebraValue::Dot(envelope) => algorithm_guarantee_status(envelope.guarantee),
         LinearAlgebraValue::ExactRref(r) => algorithm_guarantee_status(r.guarantee),
         LinearAlgebraValue::ExactNullSpace(r) => algorithm_guarantee_status(r.guarantee),
+        LinearAlgebraValue::ExactInverse(r) => {
+            let (status, coverage) = algorithm_guarantee_status(r.guarantee);
+            match &r.disposition {
+                SolveDisposition::Unique => (status, coverage),
+                SolveDisposition::Singular => (ComputationStatus::Partial, CoverageStatus::Partial),
+                SolveDisposition::Infinite { .. } | SolveDisposition::Inconsistent => (status, CoverageStatus::Partial),
+                SolveDisposition::ResourceLimited => (ComputationStatus::ResourceLimited, CoverageStatus::Partial),
+            }
+        }
         LinearAlgebraValue::ExactSolve(r) => {
             let (status, coverage) = algorithm_guarantee_status(r.guarantee);
             match &r.disposition {

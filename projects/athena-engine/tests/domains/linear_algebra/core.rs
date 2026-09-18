@@ -424,6 +424,54 @@ fn goal_inverse_projects_nested_list_via_execution() {
 }
 
 #[test]
+fn l1_invert_exact_singular_disposition() {
+    use athena_engine::domains::linear_algebra::invert_exact;
+
+    let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap();
+    let inv = invert_exact(&a).unwrap();
+    assert_eq!(inv.disposition, SolveDisposition::Singular);
+    assert!(inv.inverse.is_none());
+}
+
+#[test]
+fn goal_inverse_singular_projects_residual() {
+    use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request, runtime::values::arena::application_display_name};
+    use athena_ir::Atom;
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Inverse {
+        matrix: matrix.into(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("singular inverse goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Partial);
+    let term = result.symbolic_term.expect("singular residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("Inverse"));
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { arguments, .. }) if arguments.len() == 1 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(athena_ir::TermNode::Atom(Atom::Symbol(_)))
+            ));
+        }
+        other => panic!("expected Inverse[Singular], got {other:?}"),
+    }
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            athena_engine::runtime::results::ResultEvidence::TrustedKernelSummary { summary, .. }
+                if summary.contains("disposition=Singular")
+        )),
+        "Inverse Singular must publish disposition, got {:?}",
+        result.evidence
+    );
+}
+
+#[test]
 fn goal_trace_projects_integer_via_execution() {
     use athena_engine::{api::{AthenaRequest, DomainGoal}, execution::execute_ir_request};
     use athena_ir::{Atom, TermNode};

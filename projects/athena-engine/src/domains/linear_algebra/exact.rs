@@ -411,8 +411,30 @@ pub fn solve_exact(a: &MatrixValue, b: &MatrixValue) -> Result<ExactSolveResult,
     }
 }
 
+/// 精确求逆结果（Living 16：奇异时走 disposition，不假造逆矩阵）。
+#[derive(Debug, PartialEq)]
+pub struct ExactInverseResult {
+    /// 分类（`Unique` 有逆；`Singular` / `Infinite` 等无逆）。
+    pub disposition: SolveDisposition,
+    /// 逆矩阵（仅 `Unique`）。
+    pub inverse: Option<MatrixResult>,
+    /// 保证级别。
+    pub guarantee: AlgorithmGuarantee,
+}
+
+impl ExactInverseResult {
+    /// Owning 复制（禁止默认 `Clone`）。
+    pub fn owning_copy(&self) -> Self {
+        Self {
+            disposition: self.disposition.owning_copy(),
+            inverse: self.inverse.as_ref().map(MatrixResult::owning_copy),
+            guarantee: self.guarantee,
+        }
+    }
+}
+
 /// 精确求逆：逐列求解 `A X = I`。
-pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+pub fn invert_exact(matrix: &MatrixValue) -> Result<ExactInverseResult, Diagnostic> {
     if matrix.parent().element.is_machine() {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "invert_exact_rejects_machine"));
     }
@@ -421,7 +443,12 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     }
     let n = matrix.shape().rows;
     if n == 0 {
-        return MatrixValue::zeros(matrix.parent(), MatrixShape::new(0, 0), StorageOrder::RowMajor);
+        let empty = MatrixValue::zeros(matrix.parent(), MatrixShape::new(0, 0), StorageOrder::RowMajor)?;
+        return Ok(ExactInverseResult {
+            disposition: SolveDisposition::Unique,
+            inverse: Some(MatrixResult::from_owned(empty, AlgorithmGuarantee::Exact)),
+            guarantee: AlgorithmGuarantee::Exact,
+        });
     }
     let eye = MatrixValue::identity(matrix.parent(), n)?;
     let mut columns: Vec<Vec<Rational>> = Vec::with_capacity(n as usize);
@@ -445,10 +472,23 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
                 })?;
                 columns.push(particular.value.to_rationals_row_major()?);
             }
-            _ => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
-                    .detail("reason", "invert_singular_or_underdetermined")
-                    .detail("disposition", format!("{:?}", solved.disposition)));
+            SolveDisposition::Singular
+            | SolveDisposition::Inconsistent
+            | SolveDisposition::Infinite { .. } => {
+                // Square but not invertible → Inverse Singular (Living 16), regardless of
+                // which left-solve disposition a particular identity column hit.
+                return Ok(ExactInverseResult {
+                    disposition: SolveDisposition::Singular,
+                    inverse: None,
+                    guarantee: AlgorithmGuarantee::Exact,
+                });
+            }
+            SolveDisposition::ResourceLimited => {
+                return Ok(ExactInverseResult {
+                    disposition: SolveDisposition::ResourceLimited,
+                    inverse: None,
+                    guarantee: AlgorithmGuarantee::Exact,
+                });
             }
         }
     }
@@ -458,7 +498,12 @@ pub fn invert_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
             data.push(clone_rational(&columns[j as usize][i as usize]));
         }
     }
-    MatrixValue::from_rationals_row_major(n, n, data)
+    let inverse = MatrixResult::from_owned(MatrixValue::from_rationals_row_major(n, n, data)?, AlgorithmGuarantee::Exact);
+    Ok(ExactInverseResult {
+        disposition: SolveDisposition::Unique,
+        inverse: Some(inverse),
+        guarantee: AlgorithmGuarantee::Exact,
+    })
 }
 
 /// 右除求解 `X B = A`：等价于 `Bᵀ Y = Aᵀ` 再转置（Living 16 / MATLAB mrdivide）。
