@@ -2470,6 +2470,70 @@ fn compile_and_execute_control_store_index_scalar() {
 }
 
 #[test]
+fn compile_and_execute_control_store_index_literal_returns_updated_collection() {
+    use athena_types::{IndexSpec, IntegerIndex};
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let nine = session.builder().int(9, Default::default());
+    let list = session.builder().list(vec![one, two, three], Default::default());
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: list,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(2))],
+        value: nine,
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &store).expect("literal store");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(term) {
+        Some(TermNode::Collection { elements, .. }) => {
+            let nums: Vec<i64> = elements
+                .iter()
+                .map(|id| match session.arena.get(*id) {
+                    Some(TermNode::Atom(Atom::Number(n))) => n.as_exact_integer().expect("int"),
+                    other => panic!("expected int, got {other:?}"),
+                })
+                .collect();
+            assert_eq!(nums, vec![1, 9, 3]);
+        }
+        other => panic!("expected list, got {other:?}"),
+    }
+
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let four = session.builder().int(4, Default::default());
+    let nine = session.builder().int(9, Default::default());
+    let row0 = session.builder().list(vec![one, two], Default::default());
+    let row1 = session.builder().list(vec![three, four], Default::default());
+    let matrix = session.builder().list(vec![row0, row1], Default::default());
+    let store = AthenaRequest::Control(ControlPlan::StoreIndex {
+        target: matrix,
+        axes: vec![IndexSpec::Scalar(IntegerIndex(1)), IndexSpec::Scalar(IntegerIndex(2))],
+        value: nine,
+    });
+    let module = ExecutionCompiler::new().compile(&mut session, &store).expect("literal matrix store");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    let rows = match session.arena.get(term) {
+        Some(TermNode::Collection { elements, .. }) => elements.clone(),
+        other => panic!("expected matrix list, got {other:?}"),
+    };
+    assert_eq!(rows.len(), 2);
+    let cell = match session.arena.get(rows[0]) {
+        Some(TermNode::Collection { elements, .. }) => elements[1],
+        other => panic!("expected row, got {other:?}"),
+    };
+    match session.arena.get(cell) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(9) => {}
+        other => panic!("expected updated cell 9, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_control_store_index_matrix_cell() {
     use athena_types::{BindingEvaluationPolicy, BindingKind, IndexSpec, IntegerIndex};
 

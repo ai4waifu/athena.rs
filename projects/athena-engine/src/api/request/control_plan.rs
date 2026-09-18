@@ -88,9 +88,10 @@ pub enum ControlPlan {
         /// 各轴 [`athena_types::IndexSpec`]（已由方言规范化）。
         axes: Vec<athena_types::IndexSpec>,
     },
-    /// 中性索引写入（方言 indexed assignment / `subsasgn` lowering 目标）。
+    /// 中性索引写入（方言 indexed assignment / `subsasgn` / `ReplacePart` lowering 目标）。
     ///
-    /// 对 `target` 解析 Own 后按 `axes` 写入 `value`，写回绑定，结果为写入值。
+    /// 符号目标解析 Own 后按 `axes` 写入 `value`，写回绑定，结果为写入值。
+    /// 非符号目标返回更新后的集合，不写绑定。
     StoreIndex {
         /// 被写入目标（通常为绑定符号项）。
         target: TermId,
