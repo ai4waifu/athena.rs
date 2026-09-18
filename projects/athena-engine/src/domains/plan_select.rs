@@ -83,7 +83,9 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         | LinearAlgebraRequest::Trace { matrix }
         | LinearAlgebraRequest::NullSpace { matrix, .. }
         | LinearAlgebraRequest::Norm { matrix }
-        | LinearAlgebraRequest::ConditionNumber { matrix } => check_op(matrix)?,
+        | LinearAlgebraRequest::ConditionNumber { matrix }
+        | LinearAlgebraRequest::Tril { matrix }
+        | LinearAlgebraRequest::Triu { matrix } => check_op(matrix)?,
         LinearAlgebraRequest::Index { matrix, .. } => check(matrix)?,
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
@@ -92,7 +94,8 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         | LinearAlgebraRequest::Solve { a: lhs, b: rhs }
         | LinearAlgebraRequest::RightSolve { a: lhs, b: rhs }
         | LinearAlgebraRequest::Dot { lhs, rhs }
-        | LinearAlgebraRequest::Cross { lhs, rhs } => {
+        | LinearAlgebraRequest::Cross { lhs, rhs }
+        | LinearAlgebraRequest::Kronecker { lhs, rhs } => {
             check_op(lhs)?;
             check_op(rhs)?;
         }

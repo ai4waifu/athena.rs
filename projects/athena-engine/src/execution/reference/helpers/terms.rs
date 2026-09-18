@@ -697,6 +697,8 @@ fn linear_algebra_request_residual_term(
         LinearAlgebraRequest::Rref { matrix } => ("RowReduce", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Norm { matrix } => ("Norm", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::ConditionNumber { matrix } => ("ConditionNumber", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Tril { matrix } => ("LowerTriangularize", vec![matrix_op_term(session, *matrix)?]),
+        LinearAlgebraRequest::Triu { matrix } => ("UpperTriangularize", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::NullSpace { matrix, .. } => ("NullSpace", vec![matrix_op_term(session, *matrix)?]),
         LinearAlgebraRequest::Solve { a, b } => ("LinearSolve", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
         LinearAlgebraRequest::RightSolve { a, b } => ("Mrdivide", vec![matrix_op_term(session, *a)?, matrix_op_term(session, *b)?]),
@@ -710,6 +712,7 @@ fn linear_algebra_request_residual_term(
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => ("Dot", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Cross { lhs, rhs } => ("Cross", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
+        LinearAlgebraRequest::Kronecker { lhs, rhs } => ("KroneckerProduct", vec![matrix_op_term(session, *lhs)?, matrix_op_term(session, *rhs)?]),
         LinearAlgebraRequest::Index { .. } => return None,
     };
     let op = session.extensions.intern(head);

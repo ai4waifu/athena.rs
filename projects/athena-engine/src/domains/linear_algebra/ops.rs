@@ -78,6 +78,161 @@ pub fn transpose(matrix: &MatrixValue) -> MatrixValue {
     matrix.transpose_view()
 }
 
+/// 下三角（含对角；严格上三角置零）。
+pub fn tril(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    triangular_mask(matrix, true)
+}
+
+/// 上三角（含对角；严格下三角置零）。
+pub fn triu(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    triangular_mask(matrix, false)
+}
+
+fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Diagnostic> {
+    let rows = matrix.shape().rows;
+    let cols = matrix.shape().cols;
+    let zero = MatrixEntry::zero(matrix.parent().element)?;
+    match matrix.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity((rows * cols) as usize);
+            for i in 0..rows {
+                for j in 0..cols {
+                    let keep = if lower { j <= i } else { j >= i };
+                    if keep {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::Integer(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        match &zero {
+                            MatrixEntry::Integer(z) => data.push(crate::runtime::values::numeric_clone::clone_integer(z)),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_integers_row_major(rows, cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity((rows * cols) as usize);
+            for i in 0..rows {
+                for j in 0..cols {
+                    let keep = if lower { j <= i } else { j >= i };
+                    if keep {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::Rational(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        match &zero {
+                            MatrixEntry::Rational(z) => data.push(crate::runtime::values::numeric_clone::clone_rational(z)),
+                            _ => unreachable!(),
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_rationals_row_major(rows, cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity((rows * cols) as usize);
+            for i in 0..rows {
+                for j in 0..cols {
+                    let keep = if lower { j <= i } else { j >= i };
+                    if keep {
+                        match matrix.get(i, j)? {
+                            MatrixEntry::MachineF64(x) => data.push(x),
+                            _ => unreachable!(),
+                        }
+                    } else {
+                        data.push(0.0);
+                    }
+                }
+            }
+            MatrixValue::from_f64_row_major(rows, cols, data)
+        }
+    }
+}
+
+/// Kronecker 积 `A ⊗ B`（块缩放）。
+pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    require_same_element_parent(lhs, rhs)?;
+    let ar = lhs.shape().rows;
+    let ac = lhs.shape().cols;
+    let br = rhs.shape().rows;
+    let bc = rhs.shape().cols;
+    let out_rows = ar
+        .checked_mul(br)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_rows_overflow"))?;
+    let out_cols = ac
+        .checked_mul(bc)
+        .ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_cols_overflow"))?;
+    match lhs.parent().element {
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
+            for i in 0..ar {
+                for p in 0..br {
+                    for j in 0..ac {
+                        let a = match lhs.get(i, j)? {
+                            MatrixEntry::Integer(x) => x,
+                            _ => unreachable!(),
+                        };
+                        for q in 0..bc {
+                            let b = match rhs.get(p, q)? {
+                                MatrixEntry::Integer(x) => x,
+                                _ => unreachable!(),
+                            };
+                            data.push(a.mul(&b));
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_integers_row_major(out_rows, out_cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
+            for i in 0..ar {
+                for p in 0..br {
+                    for j in 0..ac {
+                        let a = match lhs.get(i, j)? {
+                            MatrixEntry::Rational(x) => x,
+                            _ => unreachable!(),
+                        };
+                        for q in 0..bc {
+                            let b = match rhs.get(p, q)? {
+                                MatrixEntry::Rational(x) => x,
+                                _ => unreachable!(),
+                            };
+                            data.push(a.mul(&b));
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_rationals_row_major(out_rows, out_cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
+            for i in 0..ar {
+                for p in 0..br {
+                    for j in 0..ac {
+                        let a = match lhs.get(i, j)? {
+                            MatrixEntry::MachineF64(x) => x,
+                            _ => unreachable!(),
+                        };
+                        for q in 0..bc {
+                            let b = match rhs.get(p, q)? {
+                                MatrixEntry::MachineF64(x) => x,
+                                _ => unreachable!(),
+                            };
+                            data.push(a * b);
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_f64_row_major(out_rows, out_cols, data)
+        }
+    }
+}
+
 fn require_same_element_parent(a: &MatrixValue, b: &MatrixValue) -> Result<(), Diagnostic> {
     if a.parent().element != b.parent().element {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch)
