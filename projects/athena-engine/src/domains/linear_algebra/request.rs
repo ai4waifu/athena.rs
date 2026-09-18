@@ -136,6 +136,23 @@ pub enum LinearAlgebraRequest {
         /// 右（对象句柄或符号绑定）。
         rhs: MatrixOperand,
     },
+    /// 对角阵判定（MATLAB `isdiag`）。
+    IsDiagonal {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
+    /// 三角阵判定（MATLAB `istril` / `istriu`）。
+    IsTriangular {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+        /// `true` → 下三角；`false` → 上三角。
+        lower: bool,
+    },
+    /// 对称判定（MATLAB `issymmetric`）。
+    IsSymmetric {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -166,6 +183,12 @@ impl LinearAlgebraRequest {
             Self::Tril { matrix } => Self::Tril { matrix: *matrix },
             Self::Triu { matrix } => Self::Triu { matrix: *matrix },
             Self::Kronecker { lhs, rhs } => Self::Kronecker { lhs: *lhs, rhs: *rhs },
+            Self::IsDiagonal { matrix } => Self::IsDiagonal { matrix: *matrix },
+            Self::IsTriangular { matrix, lower } => Self::IsTriangular {
+                matrix: *matrix,
+                lower: *lower,
+            },
+            Self::IsSymmetric { matrix } => Self::IsSymmetric { matrix: *matrix },
         }
     }
 }
