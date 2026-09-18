@@ -1237,6 +1237,24 @@ fn singular_forms_fold_to_indeterminate() {
 }
 
 #[test]
+fn machine_non_finite_folds_to_indeterminate() {
+    let mut session = Session::new();
+    let inf = session.builder().real(f64::INFINITY, Default::default());
+    let subtract = ApplicationHead::Semantic(SemanticOperator::Subtract);
+    let term = session.builder().application(subtract, vec![inf, inf], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("inf-inf");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+
+    let zero = session.builder().real(0.0, Default::default());
+    let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+    let div = session.builder().application(divide, vec![zero, zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(div)).expect("0/0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert_indeterminate(&session, session.results.get(result_id).expect("result").symbolic_term.expect("term"));
+}
+
+#[test]
 fn zero_pow_zero_one_convention_yields_one() {
     use athena_engine::runtime::ZeroPowerZeroConvention;
 
