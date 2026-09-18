@@ -149,6 +149,7 @@ fn l1_machine_solve_singular_rank_deficient() {
     let w = sol.witness.expect("singular carries witness");
     assert!(w.residual_inf.is_none());
     assert_eq!(w.numerical_rank, 1);
+    assert!(sol.solution.is_none());
     assert_eq!(sol.guarantee, AlgorithmGuarantee::Approximate);
 }
 
@@ -161,6 +162,8 @@ fn l1_machine_solve_with_residual() {
     let w = sol.witness.unwrap();
     assert!(w.residual_inf.expect("unique carries residual") < 1e-9);
     assert_eq!(w.numerical_rank, 2);
+    let conditioning = sol.solution.as_ref().and_then(|s| s.conditioning).expect("unique carries conditioning");
+    assert!(conditioning.is_finite() && conditioning >= 1.0);
     assert_eq!(sol.guarantee, AlgorithmGuarantee::Approximate);
 }
 

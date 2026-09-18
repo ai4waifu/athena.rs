@@ -127,7 +127,8 @@ fn machine_solve_with_solution_projects_list_term() {
     let solution = MatrixResult::from_owned(
         MatrixValue::from_f64_row_major(2, 1, vec![1.0, 2.0]).expect("column"),
         AlgorithmGuarantee::Approximate,
-    );
+    )
+    .with_machine_witness(1e-14, Some(1.5));
     let domain = DomainResult::LinearAlgebra(LinearAlgebraResult::Ok {
         value: LinearAlgebraValue::MachineSolve(MachineSolveResult {
             disposition: SolveDisposition::Unique,
@@ -152,6 +153,15 @@ fn machine_solve_with_solution_projects_list_term() {
                 if summary.contains("matrix_ref=")
         )),
         "MachineSolve must publish matrix_ref evidence, got {:?}",
+        result.evidence
+    );
+    assert!(
+        result.evidence.iter().any(|e| matches!(
+            e,
+            athena_engine::runtime::results::ResultEvidence::TrustedKernelSummary { summary, .. }
+                if summary.contains("residual_inf=") && summary.contains("conditioning=")
+        )),
+        "Unique MachineSolve must publish residual+conditioning evidence, got {:?}",
         result.evidence
     );
 }
