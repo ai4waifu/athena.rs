@@ -343,7 +343,8 @@ fn run(
         LinearAlgebraRequest::Kronecker { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
             let rhs = rhs.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::matrix_outcome(kronecker(&lhs, &rhs)?))
+            // Living 16: 行/列向量 Kronecker 与 Dot 同表面（平坦 List），方块积仍为嵌套矩阵。
+            Ok(LinearAlgebraValue::dot_outcome(kronecker(&lhs, &rhs)?))
         }
     }
 }
