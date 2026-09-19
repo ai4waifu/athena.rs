@@ -359,6 +359,40 @@ fn goal_machine_solve_singular_projects_residual() {
 }
 
 #[test]
+fn goal_exact_solve_inconsistent_projects_disposition_residual() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        execution::execute_ir_request,
+        runtime::values::arena::application_display_name,
+    };
+    use athena_ir::Atom;
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 1, vec![i(1), i(0)]).unwrap());
+    let request =
+        AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a: a.into(), b: b.into() })));
+    let result_id = execute_ir_request(&mut session, request).expect("exact inconsistent goal");
+    let result = session.results.get(result_id).expect("result");
+    // Exact domain proves inconsistency; projection is a disposition residual, not an empty list.
+    assert_eq!(result.status, ComputationStatus::Exact);
+    let term = result.symbolic_term.expect("inconsistent residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("LinearSolve"));
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { arguments, .. }) if arguments.len() == 1 => {
+            assert!(matches!(session.arena.get(arguments[0]), Some(athena_ir::TermNode::Atom(Atom::Symbol(_)))));
+        }
+        other => panic!("expected LinearSolve[Inconsistent], got {other:?}"),
+    }
+}
+
+
+#[test]
 fn goal_rref_projects_nested_list_via_execution() {
     use athena_engine::{
         api::{AthenaRequest, DomainGoal},
