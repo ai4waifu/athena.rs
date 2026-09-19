@@ -393,6 +393,41 @@ fn goal_exact_solve_inconsistent_projects_disposition_residual() {
 
 
 #[test]
+fn goal_exact_solve_infinite_projects_disposition_residual() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        execution::execute_ir_request,
+        runtime::values::arena::application_display_name,
+    };
+    use athena_ir::{Atom, TermNode};
+    use athena_types::ComputationStatus;
+
+    let mut session = Session::new();
+    let a = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(4)]).unwrap());
+    let b = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 1, vec![i(2), i(4)]).unwrap());
+    let request =
+        AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::Solve { a: a.into(), b: b.into() })));
+    let result_id = execute_ir_request(&mut session, request).expect("exact infinite goal");
+    let result = session.results.get(result_id).expect("result");
+    // Exact domain certifies an affine family; coverage stays Partial because free vars remain.
+    assert_eq!(result.status, ComputationStatus::Exact);
+    assert_eq!(result.coverage, athena_engine::runtime::results::CoverageStatus::Partial);
+    let term = result.symbolic_term.expect("infinite residual");
+    assert_eq!(application_display_name(&session, term).as_deref(), Some("LinearSolve"));
+    match session.arena.get(term) {
+        Some(TermNode::Application { arguments, .. }) if arguments.len() >= 1 => {
+            assert!(matches!(session.arena.get(arguments[0]), Some(TermNode::Atom(Atom::Symbol(_)))));
+        }
+        other => panic!("expected LinearSolve[Infinite, …], got {other:?}"),
+    }
+}
+
+
+#[test]
 fn goal_rref_projects_nested_list_via_execution() {
     use athena_engine::{
         api::{AthenaRequest, DomainGoal},
