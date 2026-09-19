@@ -26,11 +26,22 @@ fn is_indeterminate_term(session: &Session, term: TermId) -> bool {
     )
 }
 
-/// 裸正无穷内核（`MathematicalConstant::Infinity`）。
+/// 裸正无穷，或非零数除以零留下的 `Divide` 残差。
+///
+/// 单个非零除以零仍保持 `Divide`。同类相消必须发布 `Indeterminate`，不得折成 `0`。
 fn is_infinity_kernel(session: &Session, term: TermId) -> bool {
-    matches!(session.arena.get(term), Some(athena_ir::TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity))))
+    if matches!(session.arena.get(term), Some(athena_ir::TermNode::Atom(Atom::Constant(MathematicalConstant::Infinity)))) {
+        return true;
+    }
+    match session.arena.get(term) {
+        Some(athena_ir::TermNode::Application { head, arguments }) if is_sem(*head, SemanticOperator::Divide) && arguments.len() == 2 => {
+            let den_zero = number_of(session, arguments[1]).is_some_and(Number::is_zero);
+            let num_nonzero = number_of(session, arguments[0]).is_some_and(|n| !n.is_zero());
+            den_zero && num_nonzero
+        }
+        _ => false,
+    }
 }
-
 fn factor_contains_infinity(session: &Session, term: TermId) -> bool {
     if is_infinity_kernel(session, term) {
         return true;
