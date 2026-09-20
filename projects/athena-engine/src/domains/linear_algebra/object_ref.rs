@@ -118,6 +118,7 @@ fn provisional_matrix_fingerprint(matrix: &MatrixValue) -> u64 {
         ElementParentKind::Integers => 0,
         ElementParentKind::Rationals => 1,
         ElementParentKind::MachineReal => 2,
+        ElementParentKind::ComplexExact => 3,
     });
     body.push(match matrix.layout().order {
         StorageOrder::RowMajor => 0,
@@ -145,6 +146,16 @@ fn provisional_matrix_fingerprint(matrix: &MatrixValue) -> u64 {
             body.extend_from_slice(&(v.len() as u32).to_le_bytes());
             for x in v.iter() {
                 body.extend_from_slice(&x.to_bits().to_le_bytes());
+            }
+        }
+        MatrixBuffer::ComplexExact(v) => {
+            body.push(3);
+            body.extend_from_slice(&(v.len() as u32).to_le_bytes());
+            for (re, im) in v.iter() {
+                body.extend_from_slice(re.to_wire_string().as_bytes());
+                body.push(0xfe);
+                body.extend_from_slice(im.to_wire_string().as_bytes());
+                body.push(0xff);
             }
         }
     }

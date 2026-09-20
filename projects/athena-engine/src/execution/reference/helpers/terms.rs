@@ -497,6 +497,22 @@ pub(crate) fn rational_to_term_session(session: &mut Session, r: &Rational) -> T
     push_number(session, Number::from_rational_normalized(clone_rational(r)))
 }
 
+/// Exact complex entry → `re + im * I` (symbol `I` · dialect skin).
+pub(crate) fn complex_exact_to_term_session(session: &mut Session, re: &Rational, im: &Rational) -> TermId {
+    let re_t = rational_to_term_session(session, re);
+    if im.is_zero() {
+        return re_t;
+    }
+    let im_t = rational_to_term_session(session, im);
+    let i = session.builder().symbol("I", Default::default());
+    let times = push_semantic(session, SemanticOperator::Multiply, vec![im_t, i]);
+    if re.is_zero() {
+        times
+    } else {
+        push_semantic(session, SemanticOperator::Add, vec![re_t, times])
+    }
+}
+
 pub(crate) fn matrix_to_nested_list_session(session: &mut Session, m: &MatrixValue) -> Result<TermId> {
     // Domain 矩阵结果（含 NullSpace 行基、Inverse、Rref）一律嵌套行 List。
     // 1×n 不得压成平坦 List，否则 `NullSpace` 单基向量会丢外层 `{{…}}`。
@@ -537,6 +553,7 @@ pub(crate) fn matrix_entry_to_term_session(session: &mut Session, m: &MatrixValu
             }
         }
         MatrixEntry::MachineF64(x) => push_number(session, Number::machine(x)),
+        MatrixEntry::ComplexExact { re, im } => complex_exact_to_term_session(session, &re, &im),
     })
 }
 

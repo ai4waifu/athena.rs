@@ -9,12 +9,14 @@ pub enum ElementParentKind {
     Rationals,
     /// 机器实数（IEEE binary64）。
     MachineReal,
+    /// 精确高斯有理 `ℚ(i)`（实部/虚部均为有理）。
+    ComplexExact,
 }
 
 impl ElementParentKind {
     /// 是否为精确（无舍入）路径。
     pub const fn is_exact(self) -> bool {
-        matches!(self, Self::Integers | Self::Rationals)
+        matches!(self, Self::Integers | Self::Rationals | Self::ComplexExact)
     }
 
     /// 是否为机器数值路径。
@@ -88,6 +90,16 @@ impl MatrixParent {
             element: ElementParentKind::MachineReal,
             shape_policy: ShapePolicy::Fixed,
             rounding: RoundingPolicy::IeeeBinary64,
+            sparse: SparseStrategy::Dense,
+        }
+    }
+
+    /// 精确复数稠密矩阵（有理实部/虚部）。
+    pub const fn complex_exact() -> Self {
+        Self {
+            element: ElementParentKind::ComplexExact,
+            shape_policy: ShapePolicy::Fixed,
+            rounding: RoundingPolicy::Exact,
             sparse: SparseStrategy::Dense,
         }
     }

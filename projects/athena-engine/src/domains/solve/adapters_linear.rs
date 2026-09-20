@@ -162,6 +162,7 @@ fn binding_value_from_entry(entry: MatrixEntry) -> Result<BindingValue, Diagnost
         MatrixEntry::Integer(n) => Ok(BindingValue::Rational(athena_numeric::Rational::from_integer(n))),
         MatrixEntry::Rational(r) => Ok(BindingValue::Rational(r)),
         MatrixEntry::MachineF64(x) => Ok(BindingValue::MachineF64(x)),
+        MatrixEntry::ComplexExact { .. } => Err(diag("binding_complex_exact_pending")),
     }
 }
 

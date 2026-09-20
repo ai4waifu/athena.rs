@@ -22,6 +22,8 @@ pub enum MatrixBuffer {
     Rationals(Arc<Vec<Rational>>),
     /// 机器实数稠密缓冲。
     MachineF64(Arc<Vec<f64>>),
+    /// 精确复数稠密缓冲（有理实部/虚部对）。
+    ComplexExact(Arc<Vec<(Rational, Rational)>>),
 }
 
 impl MatrixBuffer {
@@ -31,6 +33,7 @@ impl MatrixBuffer {
             Self::Integers(v) => v.len(),
             Self::Rationals(v) => v.len(),
             Self::MachineF64(v) => v.len(),
+            Self::ComplexExact(v) => v.len(),
         }
     }
 
@@ -45,6 +48,7 @@ impl MatrixBuffer {
             Self::Integers(v) => Self::Integers(Arc::clone(v)),
             Self::Rationals(v) => Self::Rationals(Arc::clone(v)),
             Self::MachineF64(v) => Self::MachineF64(Arc::clone(v)),
+            Self::ComplexExact(v) => Self::ComplexExact(Arc::clone(v)),
         }
     }
 }
@@ -92,6 +96,7 @@ impl MatrixValue {
             MatrixBuffer::Integers(v) => Arc::strong_count(v),
             MatrixBuffer::Rationals(v) => Arc::strong_count(v),
             MatrixBuffer::MachineF64(v) => Arc::strong_count(v),
+            MatrixBuffer::ComplexExact(v) => Arc::strong_count(v),
         }
     }
 
@@ -111,6 +116,7 @@ impl MatrixValue {
             (ElementParentKind::Integers, MatrixBuffer::Integers(_)) => parent.rounding.is_exact_like(),
             (ElementParentKind::Rationals, MatrixBuffer::Rationals(_)) => parent.rounding.is_exact_like(),
             (ElementParentKind::MachineReal, MatrixBuffer::MachineF64(_)) => !parent.rounding.is_exact_like(),
+            (ElementParentKind::ComplexExact, MatrixBuffer::ComplexExact(_)) => parent.rounding.is_exact_like(),
             _ => false,
         };
         if ok {
@@ -167,6 +173,17 @@ impl MatrixValue {
         Ok(Self { parent, shape, layout, offset: 0, data: buffer })
     }
 
+    /// 从稠密行主序精确复数构造（`(re, im)` 有理对）。
+    pub fn from_complex_exact_row_major(rows: u64, cols: u64, data: Vec<(Rational, Rational)>) -> Result<Self, Diagnostic> {
+        let shape = MatrixShape::new(rows, cols);
+        let layout = Layout::row_major(shape)?;
+        let buffer = MatrixBuffer::ComplexExact(Arc::new(data));
+        Self::validate_len(shape, &buffer)?;
+        let parent = MatrixParent::complex_exact();
+        Self::parent_matches_buffer(parent, &buffer)?;
+        Ok(Self { parent, shape, layout, offset: 0, data: buffer })
+    }
+
     /// 零矩阵（按 parent 元素类型）。
     pub fn zeros(parent: MatrixParent, shape: MatrixShape, order: StorageOrder) -> Result<Self, Diagnostic> {
         let n = shape.element_count()?;
@@ -186,6 +203,14 @@ impl MatrixValue {
                 __v
             })),
             ElementParentKind::MachineReal => MatrixBuffer::MachineF64(Arc::new(vec![0.0; n])),
+            ElementParentKind::ComplexExact => MatrixBuffer::ComplexExact(Arc::new({
+                let z = (Rational::zero(), Rational::zero());
+                let mut __v = Vec::with_capacity(n);
+                for _ in 0..n {
+                    __v.push((clone_rational(&z.0), clone_rational(&z.1)));
+                }
+                __v
+            })),
         };
         Self::parent_matches_buffer(parent, &data)?;
         Ok(Self { parent, shape, layout, offset: 0, data })
@@ -223,6 +248,13 @@ impl MatrixValue {
             MatrixBuffer::Integers(v) => MatrixEntry::Integer(clone_integer(&v[i])),
             MatrixBuffer::Rationals(v) => MatrixEntry::Rational(clone_rational(&v[i])),
             MatrixBuffer::MachineF64(v) => MatrixEntry::MachineF64(v[i]),
+            MatrixBuffer::ComplexExact(v) => {
+                let (re, im) = &v[i];
+                MatrixEntry::ComplexExact {
+                    re: clone_rational(re),
+                    im: clone_rational(im),
+                }
+            }
         })
     }
 
@@ -240,6 +272,15 @@ impl MatrixValue {
             }
             MatrixBuffer::MachineF64(v) => {
                 Arc::make_mut(v);
+            }
+            MatrixBuffer::ComplexExact(v) => {
+                if Arc::strong_count(v) > 1 {
+                    let copied: Vec<_> = v
+                        .iter()
+                        .map(|(re, im)| (clone_rational(re), clone_rational(im)))
+                        .collect();
+                    *v = Arc::new(copied);
+                }
             }
         }
     }
@@ -259,6 +300,10 @@ impl MatrixValue {
             }
             (MatrixBuffer::MachineF64(v), MatrixEntry::MachineF64(x)) => {
                 Arc::get_mut(v).expect("unique after ensure")[i] = x;
+                Ok(())
+            }
+            (MatrixBuffer::ComplexExact(v), MatrixEntry::ComplexExact { re, im }) => {
+                Arc::get_mut(v).expect("unique after ensure")[i] = (re, im);
                 Ok(())
             }
             _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "entry_parent_mismatch")),
@@ -316,6 +361,18 @@ impl MatrixValue {
                 }
                 Self::from_f64_row_major(self.shape.rows, self.shape.cols, out)
             }
+            ElementParentKind::ComplexExact => {
+                let mut out = Vec::with_capacity(n);
+                for r in 0..self.shape.rows {
+                    for c in 0..self.shape.cols {
+                        out.push(match self.get(r, c)? {
+                            MatrixEntry::ComplexExact { re, im } => (re, im),
+                            _ => unreachable!(),
+                        });
+                    }
+                }
+                Self::from_complex_exact_row_major(self.shape.rows, self.shape.cols, out)
+            }
         }
     }
 
@@ -356,6 +413,9 @@ impl MatrixValue {
             MatrixBuffer::Rationals(_) => Ok(self.owning_copy()),
             MatrixBuffer::MachineF64(_) => {
                 Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cannot_promote_machine_to_exact"))
+            }
+            MatrixBuffer::ComplexExact(_) => {
+                Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cannot_promote_complex_to_rationals"))
             }
         }
     }
@@ -398,6 +458,13 @@ pub enum MatrixEntry {
     Rational(Rational),
     /// 机器实数。
     MachineF64(f64),
+    /// 精确复数（有理实部/虚部）。
+    ComplexExact {
+        /// 实部。
+        re: Rational,
+        /// 虚部。
+        im: Rational,
+    },
 }
 
 impl MatrixEntry {
@@ -407,6 +474,10 @@ impl MatrixEntry {
             ElementParentKind::Integers => Self::Integer(Integer::one()),
             ElementParentKind::Rationals => Self::Rational(Rational::one()),
             ElementParentKind::MachineReal => Self::MachineF64(1.0),
+            ElementParentKind::ComplexExact => Self::ComplexExact {
+                re: Rational::one(),
+                im: Rational::zero(),
+            },
         })
     }
 
@@ -416,6 +487,10 @@ impl MatrixEntry {
             ElementParentKind::Integers => Self::Integer(Integer::zero()),
             ElementParentKind::Rationals => Self::Rational(Rational::zero()),
             ElementParentKind::MachineReal => Self::MachineF64(0.0),
+            ElementParentKind::ComplexExact => Self::ComplexExact {
+                re: Rational::zero(),
+                im: Rational::zero(),
+            },
         })
     }
 
@@ -425,6 +500,10 @@ impl MatrixEntry {
             Self::Integer(x) => Self::Integer(clone_integer(x)),
             Self::Rational(x) => Self::Rational(clone_rational(x)),
             Self::MachineF64(x) => Self::MachineF64(*x),
+            Self::ComplexExact { re, im } => Self::ComplexExact {
+                re: clone_rational(re),
+                im: clone_rational(im),
+            },
         }
     }
 }

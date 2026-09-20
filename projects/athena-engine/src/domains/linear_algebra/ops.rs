@@ -19,6 +19,7 @@ pub fn index_scalar(matrix: &MatrixValue, row: u64, col: u64) -> Result<MatrixVa
         MatrixEntry::Integer(x) => MatrixValue::from_integers_row_major(1, 1, vec![x]),
         MatrixEntry::Rational(x) => MatrixValue::from_rationals_row_major(1, 1, vec![x]),
         MatrixEntry::MachineF64(x) => MatrixValue::from_f64_row_major(1, 1, vec![x]),
+        MatrixEntry::ComplexExact { re, im } => MatrixValue::from_complex_exact_row_major(1, 1, vec![(re, im)]),
     }
 }
 
@@ -32,6 +33,9 @@ pub fn slice_matrix(matrix: &MatrixValue, spec: &IndexSpec) -> Result<MatrixValu
             let out_rows = row_ix.len() as u64;
             let out_cols = col_ix.len() as u64;
             match matrix.parent().element {
+                ElementParentKind::ComplexExact => {
+                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                }
                 ElementParentKind::Integers => {
                     let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
                     for &r in &row_ix {
@@ -83,7 +87,23 @@ pub fn transpose(matrix: &MatrixValue) -> MatrixValue {
 /// 当前 parent 只有实数元素（整数 / 有理 / 机器实数），共轭是恒等，结果等于 [	ranspose]。
 /// 复数 parent 落地后必须先共轭再转置，不得继续把本函数当成实数别名。
 pub fn conjugate_transpose(matrix: &MatrixValue) -> MatrixValue {
-    transpose(matrix)
+    match matrix.parent().element {
+        ElementParentKind::Integers | ElementParentKind::Rationals | ElementParentKind::MachineReal => transpose(matrix),
+        ElementParentKind::ComplexExact => {
+            let rows = matrix.shape().rows;
+            let cols = matrix.shape().cols;
+            let mut data = Vec::with_capacity((rows * cols) as usize);
+            for i in 0..cols {
+                for j in 0..rows {
+                    match matrix.get(j, i).expect("in-bounds conjugate_transpose") {
+                        MatrixEntry::ComplexExact { re, im } => data.push((re, im.neg())),
+                        _ => unreachable!("ComplexExact buffer"),
+                    }
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(cols, rows, data).expect("shape matches buffer")
+        }
+    }
 }
 
 /// 下三角（含对角；严格上三角置零）。
@@ -101,6 +121,9 @@ fn triangular_mask(matrix: &MatrixValue, lower: bool) -> Result<MatrixValue, Dia
     let cols = matrix.shape().cols;
     let zero = MatrixEntry::zero(matrix.parent().element)?;
     match matrix.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity((rows * cols) as usize);
             for i in 0..rows {
@@ -169,6 +192,7 @@ fn entry_is_zero(entry: &MatrixEntry) -> bool {
         MatrixEntry::Integer(x) => x.is_zero(),
         MatrixEntry::Rational(x) => x.is_zero(),
         MatrixEntry::MachineF64(x) => *x == 0.0,
+        MatrixEntry::ComplexExact { re, im } => re.is_zero() && im.is_zero(),
     }
 }
 
@@ -250,6 +274,9 @@ pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Di
     let out_cols =
         ac.checked_mul(bc).ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_cols_overflow"))?;
     match lhs.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
             for i in 0..ar {
@@ -331,6 +358,9 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
     require_same_element_parent(lhs, rhs)?;
     let out_shape = lhs.shape().matmul(rhs.shape())?;
     match lhs.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = {
                 let mut __v = Vec::new();
@@ -410,6 +440,9 @@ pub fn hadamard(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Dia
     require_same_element_parent(lhs, rhs)?;
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
             for i in 0..out_shape.rows {
@@ -469,6 +502,9 @@ pub fn elementwise_divide(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<Matrix
     require_same_element_parent(lhs, rhs)?;
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
             for i in 0..out_shape.rows {
@@ -530,6 +566,9 @@ pub fn elementwise_power(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixV
     require_same_element_parent(lhs, rhs)?;
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
             for i in 0..out_shape.rows {
@@ -607,6 +646,9 @@ pub fn flatten_row_major(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
     let n = matrix.shape().element_count()?;
     let n_u64 = n as u64;
     match matrix.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(n);
             for i in 0..rows {
@@ -655,6 +697,9 @@ pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     }
     if rows == 1 {
         match matrix.parent().element {
+            ElementParentKind::ComplexExact => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity(cols as usize);
                 for j in (0..cols).rev() {
@@ -689,6 +734,9 @@ pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     }
     else {
         match matrix.parent().element {
+            ElementParentKind::ComplexExact => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity((rows * cols) as usize);
                 for i in (0..rows).rev() {
@@ -747,6 +795,9 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
     if all_rows {
         let cols: u64 = parts.iter().map(|p| p.shape().cols).sum();
         match parent.element {
+            ElementParentKind::ComplexExact => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity(cols as usize);
                 for p in parts {
@@ -797,6 +848,9 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
         }
         let rows: u64 = parts.iter().map(|p| p.shape().rows).sum();
         match parent.element {
+            ElementParentKind::ComplexExact => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity((rows * cols) as usize);
                 for p in parts {
@@ -918,6 +972,9 @@ pub fn pad_left_row_vector(matrix: &MatrixValue, n: u64) -> Result<MatrixValue, 
     }
     let pad = n - cols;
     match matrix.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(n as usize);
             for _ in 0..pad {
@@ -971,6 +1028,9 @@ pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<Mat
     let n = left.shape().cols.min(right.shape().cols);
     let out_cols = n.saturating_mul(2);
     match left.parent().element {
+        ElementParentKind::ComplexExact => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+        }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_cols as usize);
             for j in 0..n {
@@ -1125,6 +1185,9 @@ fn vector3_rationals(matrix: &MatrixValue) -> Result<[Rational; 3], Diagnostic> 
             MatrixEntry::Rational(r) => r,
             MatrixEntry::MachineF64(_) => {
                 return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "cross_entry_machine"));
+            }
+            MatrixEntry::ComplexExact { .. } => {
+                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "cross_entry_complex_pending"));
             }
         };
     }
