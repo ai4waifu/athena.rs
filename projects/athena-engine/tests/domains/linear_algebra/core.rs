@@ -5,7 +5,7 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major, reverse_matrix, join_matrices, slice_matrix,
             hadamard, is_diagonal, is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact,
             scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril, triu,
         },
@@ -212,6 +212,37 @@ fn l0_complex_exact_flatten_row_major() {
         }
     );
 }
+
+#[test]
+fn l0_complex_exact_reverse_join_slice() {
+    let m = MatrixValue::from_complex_exact_row_major(
+        2,
+        2,
+        vec![(q(1, 1), q(1, 1)), (q(2, 1), q(0, 1)), (q(3, 1), q(0, 1)), (q(4, 1), q(0, 1))],
+    )
+    .expect("m");
+    let rev = reverse_matrix(&m).expect("reverse");
+    assert_eq!(
+        rev.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(3, 1),
+            im: q(0, 1),
+        }
+    );
+    let a = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(1, 1), q(1, 1))]).expect("a");
+    let b = MatrixValue::from_complex_exact_row_major(1, 1, vec![(q(2, 1), q(0, 1))]).expect("b");
+    let joined = join_matrices(&[&a, &b]).expect("join");
+    assert_eq!(joined.shape(), MatrixShape::new(1, 2));
+    let sliced = slice_matrix(&m, &IndexSpec::Scalar { row: 0, col: 1 }).expect("slice");
+    assert_eq!(
+        sliced.get(0, 0).unwrap(),
+        MatrixEntry::ComplexExact {
+            re: q(2, 1),
+            im: q(0, 1),
+        }
+    );
+}
+
 
 
 

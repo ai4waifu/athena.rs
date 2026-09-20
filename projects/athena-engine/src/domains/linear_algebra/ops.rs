@@ -34,7 +34,13 @@ pub fn slice_matrix(matrix: &MatrixValue, spec: &IndexSpec) -> Result<MatrixValu
             let out_cols = col_ix.len() as u64;
             match matrix.parent().element {
                 ElementParentKind::ComplexExact => {
-                    return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                    let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
+                    for &r in &row_ix {
+                        for &c in &col_ix {
+                            data.push(complex_exact_entry(matrix.get(r, c)?)?);
+                        }
+                    }
+                    MatrixValue::from_complex_exact_row_major(out_rows, out_cols, data)
                 }
                 ElementParentKind::Integers => {
                     let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
@@ -770,7 +776,11 @@ pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     if rows == 1 {
         match matrix.parent().element {
             ElementParentKind::ComplexExact => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                let mut data = Vec::with_capacity(cols as usize);
+                for j in (0..cols).rev() {
+                    data.push(complex_exact_entry(matrix.get(0, j)?)?);
+                }
+                MatrixValue::from_complex_exact_row_major(1, cols, data)
             }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity(cols as usize);
@@ -807,7 +817,13 @@ pub fn reverse_matrix(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     else {
         match matrix.parent().element {
             ElementParentKind::ComplexExact => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for i in (0..rows).rev() {
+                    for j in 0..cols {
+                        data.push(complex_exact_entry(matrix.get(i, j)?)?);
+                    }
+                }
+                MatrixValue::from_complex_exact_row_major(rows, cols, data)
             }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity((rows * cols) as usize);
@@ -868,7 +884,13 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
         let cols: u64 = parts.iter().map(|p| p.shape().cols).sum();
         match parent.element {
             ElementParentKind::ComplexExact => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                let mut data = Vec::with_capacity(cols as usize);
+                for p in parts {
+                    for j in 0..p.shape().cols {
+                        data.push(complex_exact_entry(p.get(0, j)?)?);
+                    }
+                }
+                MatrixValue::from_complex_exact_row_major(1, cols, data)
             }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity(cols as usize);
@@ -921,7 +943,15 @@ pub fn join_matrices(parts: &[&MatrixValue]) -> Result<MatrixValue, Diagnostic> 
         let rows: u64 = parts.iter().map(|p| p.shape().rows).sum();
         match parent.element {
             ElementParentKind::ComplexExact => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+                let mut data = Vec::with_capacity((rows * cols) as usize);
+                for p in parts {
+                    for i in 0..p.shape().rows {
+                        for j in 0..cols {
+                            data.push(complex_exact_entry(p.get(i, j)?)?);
+                        }
+                    }
+                }
+                MatrixValue::from_complex_exact_row_major(rows, cols, data)
             }
             ElementParentKind::Integers => {
                 let mut data = Vec::with_capacity((rows * cols) as usize);
