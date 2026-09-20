@@ -9,7 +9,7 @@ use super::{
     shape::MatrixShape,
     value::{MatrixEntry, MatrixValue},
 };
-use crate::runtime::values::numeric_clone::{resize_integers, resize_rationals};
+use crate::runtime::values::numeric_clone::{clone_rational, resize_integers, resize_rationals};
 
 /// 标量索引（返回 1×1 矩阵以保持矩阵对象模型）。
 pub fn index_scalar(matrix: &MatrixValue, row: u64, col: u64) -> Result<MatrixValue, Diagnostic> {
@@ -292,7 +292,19 @@ pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Di
         ac.checked_mul(bc).ok_or_else(|| Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "kronecker_cols_overflow"))?;
     match lhs.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
+            for i in 0..ar {
+                for p in 0..br {
+                    for j in 0..ac {
+                        let a = complex_exact_entry(lhs.get(i, j)?)?;
+                        for q in 0..bc {
+                            let b = complex_exact_entry(rhs.get(p, q)?)?;
+                            data.push(complex_mul(&a, &b));
+                        }
+                    }
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(out_rows, out_cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity((out_rows * out_cols) as usize);
@@ -379,6 +391,24 @@ fn complex_mul(a: &(Rational, Rational), b: &(Rational, Rational)) -> (Rational,
 fn complex_add(a: &(Rational, Rational), b: &(Rational, Rational)) -> (Rational, Rational) {
     (a.0.add(&b.0), a.1.add(&b.1))
 }
+
+fn complex_pow(base: &(Rational, Rational), exp: u32) -> (Rational, Rational) {
+    let mut acc = (Rational::one(), Rational::zero());
+    if exp == 0 {
+        return acc;
+    }
+    let mut b = (clone_rational(&base.0), clone_rational(&base.1));
+    let mut e = exp;
+    while e > 0 {
+        if e & 1 == 1 {
+            acc = complex_mul(&acc, &b);
+        }
+        b = complex_mul(&b, &b);
+        e >>= 1;
+    }
+    acc
+}
+
 
 fn require_same_element_parent(a: &MatrixValue, b: &MatrixValue) -> Result<(), Diagnostic> {
     if a.parent().element != b.parent().element {
@@ -639,7 +669,31 @@ pub fn elementwise_power(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixV
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let a = complex_exact_entry(lhs.get(i, j)?)?;
+                    let (br, bi) = complex_exact_entry(rhs.get(i, j)?)?;
+                    if !bi.is_zero() || !br.is_integer() {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("reason", "complex_elementwise_power_exp_not_nonneg_int"));
+                    }
+                    let Some(exp_i) = br.numerator().to_i64() else {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("reason", "elementwise_power_exp_too_large"));
+                    };
+                    if exp_i < 0 {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("reason", "elementwise_power_neg_exp"));
+                    }
+                    if exp_i > u32::MAX as i64 {
+                        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                            .detail("reason", "elementwise_power_exp_too_large"));
+                    }
+                    data.push(complex_pow(&a, exp_i as u32));
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
@@ -1075,7 +1129,14 @@ pub fn pad_left_row_vector(matrix: &MatrixValue, n: u64) -> Result<MatrixValue, 
     let pad = n - cols;
     match matrix.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(n as usize);
+            for _ in 0..pad {
+                data.push((Rational::zero(), Rational::zero()));
+            }
+            for j in 0..cols {
+                data.push(complex_exact_entry(matrix.get(0, j)?)?);
+            }
+            MatrixValue::from_complex_exact_row_major(1, n, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(n as usize);
@@ -1131,7 +1192,12 @@ pub fn riffle_row_vectors(left: &MatrixValue, right: &MatrixValue) -> Result<Mat
     let out_cols = n.saturating_mul(2);
     match left.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(out_cols as usize);
+            for j in 0..n {
+                data.push(complex_exact_entry(left.get(0, j)?)?);
+                data.push(complex_exact_entry(right.get(0, j)?)?);
+            }
+            MatrixValue::from_complex_exact_row_major(1, out_cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_cols as usize);
