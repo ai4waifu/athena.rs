@@ -1641,15 +1641,25 @@ impl<'a> ExecutionHost<'a> {
 
     fn apply_sum(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() == 2 {
-            let body = self.slot_as_term(args[0])?;
-            let iter = self.slot_as_term(args[1])?;
-            let term = evaluate_sum_iterator_terms(self.session, body, iter)?;
-            return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            // MATLAB `sum(A, dim)` / MMA `Total[A, level]` when the second arg is `1` or `2`.
+            // Iterator forms (`Sum[f, {i, …}]`) keep a Collection in the second slot.
+            if let Some(dim) = self.matrix_reduction_dim(args[1])? {
+                if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
+                    if let Some(outcome) = self.sum_matrix_ref(matrix_ref, dim)? {
+                        return Ok(outcome);
+                    }
+                }
+            } else {
+                let body = self.slot_as_term(args[0])?;
+                let iter = self.slot_as_term(args[1])?;
+                let term = evaluate_sum_iterator_terms(self.session, body, iter)?;
+                return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            }
         }
         // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
             if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
-                if let Some(outcome) = self.sum_matrix_ref(matrix_ref)? {
+                if let Some(outcome) = self.sum_matrix_ref(matrix_ref, 1)? {
                     return Ok(outcome);
                 }
             }
@@ -1662,7 +1672,12 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
-    fn sum_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+    /// `dim=1` → column sums (MATLAB default). `dim=2` → row sums as a column vector.
+    fn sum_matrix_ref(
+        &mut self,
+        matrix_ref: crate::domains::linear_algebra::MatrixRef,
+        dim: u32,
+    ) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::MatrixEntry;
         use crate::runtime::values::arena::push_list;
         use athena_numeric::Rational;
@@ -1681,17 +1696,26 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::ComplexExact { .. } => None,
             }
         };
+        if dim == 2 {
+            let mut out = Vec::with_capacity(rows as usize);
+            for i in 0..rows {
+                let mut acc = Rational::zero();
+                for j in 0..cols {
+                    let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                    let Some(q) = entry_q(entry) else { return Ok(None) };
+                    acc = acc.add(&q);
+                }
+                let cell = rational_to_term_session(self.session, &acc);
+                out.push(push_list(self.session, vec![cell]));
+            }
+            return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
+        }
+        // dim == 1 (default): sum down each column.
         if rows == 1 {
             let mut acc = Rational::zero();
             for j in 0..cols {
-                let Ok(entry) = matrix.get(0, j)
-                else {
-                    return Ok(None);
-                };
-                let Some(q) = entry_q(entry)
-                else {
-                    return Ok(None);
-                };
+                let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                let Some(q) = entry_q(entry) else { return Ok(None) };
                 acc = acc.add(&q);
             }
             let term = rational_to_term_session(self.session, &acc);
@@ -1701,14 +1725,8 @@ impl<'a> ExecutionHost<'a> {
         for j in 0..cols {
             let mut acc = Rational::zero();
             for i in 0..rows {
-                let Ok(entry) = matrix.get(i, j)
-                else {
-                    return Ok(None);
-                };
-                let Some(q) = entry_q(entry)
-                else {
-                    return Ok(None);
-                };
+                let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                let Some(q) = entry_q(entry) else { return Ok(None) };
                 acc = acc.add(&q);
             }
             out.push(rational_to_term_session(self.session, &acc));
@@ -1716,17 +1734,42 @@ impl<'a> ExecutionHost<'a> {
         Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
     }
 
+    /// Integer `1`/`2` reduction axis. Collection second args stay Sum/Product iterators.
+    fn matrix_reduction_dim(&mut self, slot: SlotValue) -> Result<Option<u32>> {
+        use crate::runtime::values::arena::number_from_id;
+        let term = self.slot_as_term(slot)?;
+        if matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
+            return Ok(None);
+        }
+        let Some(n) = number_from_id(self.session, term).and_then(|v| v.as_exact_integer()) else {
+            return Ok(None);
+        };
+        if n == 1 || n == 2 {
+            Ok(Some(n as u32))
+        } else {
+            Ok(None)
+        }
+    }
+
     fn apply_product(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() == 2 {
-            let body = self.slot_as_term(args[0])?;
-            let iter = self.slot_as_term(args[1])?;
-            let term = evaluate_product_iterator_terms(self.session, body, iter)?;
-            return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            if let Some(dim) = self.matrix_reduction_dim(args[1])? {
+                if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
+                    if let Some(outcome) = self.product_matrix_ref(matrix_ref, dim)? {
+                        return Ok(outcome);
+                    }
+                }
+            } else {
+                let body = self.slot_as_term(args[0])?;
+                let iter = self.slot_as_term(args[1])?;
+                let term = evaluate_product_iterator_terms(self.session, body, iter)?;
+                return Ok(HostOutcome::Value(SlotValue::Term(term)));
+            }
         }
         // Living 16: prefer MatrixRef reduction. Nested Collection literals intern once.
         if args.len() == 1 {
             if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
-                if let Some(outcome) = self.product_matrix_ref(matrix_ref)? {
+                if let Some(outcome) = self.product_matrix_ref(matrix_ref, 1)? {
                     return Ok(outcome);
                 }
             }
@@ -1739,7 +1782,11 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
-    fn product_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
+    fn product_matrix_ref(
+        &mut self,
+        matrix_ref: crate::domains::linear_algebra::MatrixRef,
+        dim: u32,
+    ) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::MatrixEntry;
         use crate::runtime::values::arena::push_list;
         use athena_numeric::Rational;
@@ -1758,17 +1805,25 @@ impl<'a> ExecutionHost<'a> {
                 MatrixEntry::ComplexExact { .. } => None,
             }
         };
+        if dim == 2 {
+            let mut out = Vec::with_capacity(rows as usize);
+            for i in 0..rows {
+                let mut acc = Rational::one();
+                for j in 0..cols {
+                    let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                    let Some(q) = entry_q(entry) else { return Ok(None) };
+                    acc = acc.mul(&q);
+                }
+                let cell = rational_to_term_session(self.session, &acc);
+                out.push(push_list(self.session, vec![cell]));
+            }
+            return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
+        }
         if rows == 1 {
             let mut acc = Rational::one();
             for j in 0..cols {
-                let Ok(entry) = matrix.get(0, j)
-                else {
-                    return Ok(None);
-                };
-                let Some(q) = entry_q(entry)
-                else {
-                    return Ok(None);
-                };
+                let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                let Some(q) = entry_q(entry) else { return Ok(None) };
                 acc = acc.mul(&q);
             }
             let term = rational_to_term_session(self.session, &acc);
@@ -1778,14 +1833,8 @@ impl<'a> ExecutionHost<'a> {
         for j in 0..cols {
             let mut acc = Rational::one();
             for i in 0..rows {
-                let Ok(entry) = matrix.get(i, j)
-                else {
-                    return Ok(None);
-                };
-                let Some(q) = entry_q(entry)
-                else {
-                    return Ok(None);
-                };
+                let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                let Some(q) = entry_q(entry) else { return Ok(None) };
                 acc = acc.mul(&q);
             }
             out.push(rational_to_term_session(self.session, &acc));
