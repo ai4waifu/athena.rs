@@ -1734,14 +1734,18 @@ impl<'a> ExecutionHost<'a> {
         Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
     }
 
-    /// Integer `1`/`2` reduction axis. Collection second args stay Sum/Product iterators.
+    /// Integer `1`/`2` reduction axis.
+    ///
+    /// Bare integers and singleton level lists (`{2}`) count as axes. Longer Collections stay Sum/Product iterators.
     fn matrix_reduction_dim(&mut self, slot: SlotValue) -> Result<Option<u32>> {
         use crate::runtime::values::arena::number_from_id;
         let term = self.slot_as_term(slot)?;
-        if matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
-            return Ok(None);
-        }
-        let Some(n) = number_from_id(self.session, term).and_then(|v| v.as_exact_integer()) else {
+        let n_term = match self.session.arena.get(term) {
+            Some(TermNode::Collection { elements: items, .. }) if items.len() == 1 => items[0],
+            Some(TermNode::Collection { .. }) => return Ok(None),
+            _ => term,
+        };
+        let Some(n) = number_from_id(self.session, n_term).and_then(|v| v.as_exact_integer()) else {
             return Ok(None);
         };
         if n == 1 || n == 2 {
