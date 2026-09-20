@@ -343,6 +343,26 @@ pub fn kronecker(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Di
     }
 }
 
+fn complex_exact_entry(entry: MatrixEntry) -> Result<(Rational, Rational), Diagnostic> {
+    match entry {
+        MatrixEntry::ComplexExact { re, im } => Ok((re, im)),
+        _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "expected_complex_exact_entry")),
+    }
+}
+
+fn complex_mul(a: &(Rational, Rational), b: &(Rational, Rational)) -> (Rational, Rational) {
+    let (ar, ai) = a;
+    let (br, bi) = b;
+    (
+        ar.mul(br).add(&ai.mul(bi).neg()),
+        ar.mul(bi).add(&ai.mul(br)),
+    )
+}
+
+fn complex_add(a: &(Rational, Rational), b: &(Rational, Rational)) -> (Rational, Rational) {
+    (a.0.add(&b.0), a.1.add(&b.1))
+}
+
 fn require_same_element_parent(a: &MatrixValue, b: &MatrixValue) -> Result<(), Diagnostic> {
     if a.parent().element != b.parent().element {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch)
@@ -359,7 +379,19 @@ pub fn matmul(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Diagn
     let out_shape = lhs.shape().matmul(rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let mut acc = (Rational::zero(), Rational::zero());
+                    for k in 0..lhs.shape().cols {
+                        let a = complex_exact_entry(lhs.get(i, k)?)?;
+                        let b = complex_exact_entry(rhs.get(k, j)?)?;
+                        acc = complex_add(&acc, &complex_mul(&a, &b));
+                    }
+                    data.push(acc);
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = {
@@ -441,7 +473,15 @@ pub fn hadamard(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<MatrixValue, Dia
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let a = complex_exact_entry(lhs.get(i, j)?)?;
+                    let b = complex_exact_entry(rhs.get(i, j)?)?;
+                    data.push(complex_mul(&a, &b));
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
@@ -503,7 +543,22 @@ pub fn elementwise_divide(lhs: &MatrixValue, rhs: &MatrixValue) -> Result<Matrix
     let out_shape = MatrixShape::hadamard(lhs.shape(), rhs.shape())?;
     match lhs.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(out_shape.element_count()?);
+            for i in 0..out_shape.rows {
+                for j in 0..out_shape.cols {
+                    let (ar, ai) = complex_exact_entry(lhs.get(i, j)?)?;
+                    let (br, bi) = complex_exact_entry(rhs.get(i, j)?)?;
+                    let denom = br.mul(&br).add(&bi.mul(&bi));
+                    if denom.is_zero() {
+                        return Err(Diagnostic::new(DiagnosticCode::DivideByZero)
+                            .detail("reason", "complex_elementwise_divide_zero"));
+                    }
+                    let re = ar.mul(&br).add(&ai.mul(&bi)).try_div(&denom)?;
+                    let im = ai.mul(&br).add(&ar.mul(&bi).neg()).try_div(&denom)?;
+                    data.push((re, im));
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(out_shape.rows, out_shape.cols, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(out_shape.element_count()?);
