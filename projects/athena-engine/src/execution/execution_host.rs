@@ -500,9 +500,11 @@ impl<'a> ExecutionHost<'a> {
     fn host_matrix_join(&mut self, args: &[SlotValue]) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::join_matrices;
 
+        // Only already-typed MatrixRefs. Interning nested Collections as `1×n` would
+        // horzcat `Join[{{a,b}},{{c,d}}]` into a row, which is wrong for list-level-1 Join.
         let mut refs = Vec::with_capacity(args.len());
         for slot in args {
-            let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(*slot)?
+            let Some(matrix_ref) = self.matrix_ref_from_slot(*slot)
             else {
                 return Ok(None);
             };
