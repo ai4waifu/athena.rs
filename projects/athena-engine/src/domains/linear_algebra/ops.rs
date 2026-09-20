@@ -713,7 +713,13 @@ pub fn flatten_row_major(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
     let n_u64 = n as u64;
     match matrix.parent().element {
         ElementParentKind::ComplexExact => {
-            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "complex_matrix_op_pending"));
+            let mut data = Vec::with_capacity(n);
+            for i in 0..rows {
+                for j in 0..cols {
+                    data.push(complex_exact_entry(matrix.get(i, j)?)?);
+                }
+            }
+            MatrixValue::from_complex_exact_row_major(1, n_u64, data)
         }
         ElementParentKind::Integers => {
             let mut data = Vec::with_capacity(n);
