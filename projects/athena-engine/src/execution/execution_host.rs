@@ -32,7 +32,7 @@ use crate::{
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
             evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
-            rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session,
+            rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session, term_to_exact_matrix_session,
             domain_request_residual_term, linear_algebra_missing_binding,
         },
     },
@@ -158,7 +158,9 @@ impl<'a> ExecutionHost<'a> {
         if !matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
             return Ok(None);
         }
-        Ok(term_to_rational_matrix_session(self.session, term).map(|matrix| self.session.matrix_objects.intern(matrix)))
+        Ok(term_to_exact_matrix_session(self.session, term)
+            .or_else(|| term_to_rational_matrix_session(self.session, term))
+            .map(|matrix| self.session.matrix_objects.intern(matrix)))
     }
 
     fn host_hadamard(
@@ -1678,7 +1680,7 @@ impl<'a> ExecutionHost<'a> {
         matrix_ref: crate::domains::linear_algebra::MatrixRef,
         dim: u32,
     ) -> Result<Option<HostOutcome>> {
-        use crate::domains::linear_algebra::MatrixEntry;
+        use crate::domains::linear_algebra::{ElementParentKind, MatrixEntry};
         use crate::runtime::values::arena::push_list;
         use athena_numeric::Rational;
 
@@ -1688,50 +1690,96 @@ impl<'a> ExecutionHost<'a> {
         };
         let rows = matrix.shape().rows;
         let cols = matrix.shape().cols;
-        let entry_q = |entry: MatrixEntry| -> Option<Rational> {
-            match entry {
-                MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
-                MatrixEntry::Rational(r) => Some(r),
-                MatrixEntry::MachineF64(_) => None,
-                MatrixEntry::ComplexExact { .. } => None,
-            }
-        };
-        if dim == 2 {
-            let mut out = Vec::with_capacity(rows as usize);
-            for i in 0..rows {
-                let mut acc = Rational::zero();
-                for j in 0..cols {
-                    let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
-                    let Some(q) = entry_q(entry) else { return Ok(None) };
-                    acc = acc.add(&q);
+        match matrix.parent().element {
+            ElementParentKind::ComplexExact => {
+                let entry_c = |entry: MatrixEntry| -> Option<(Rational, Rational)> {
+                    match entry {
+                        MatrixEntry::ComplexExact { re, im } => Some((re, im)),
+                        _ => None,
+                    }
+                };
+                if dim == 2 {
+                    let mut out = Vec::with_capacity(rows as usize);
+                    for i in 0..rows {
+                        let mut acc = (Rational::zero(), Rational::zero());
+                        for j in 0..cols {
+                            let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                            let Some((re, im)) = entry_c(entry) else { return Ok(None) };
+                            acc = (acc.0.add(&re), acc.1.add(&im));
+                        }
+                        let cell = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                        out.push(push_list(self.session, vec![cell]));
+                    }
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
                 }
-                let cell = rational_to_term_session(self.session, &acc);
-                out.push(push_list(self.session, vec![cell]));
+                if rows == 1 {
+                    let mut acc = (Rational::zero(), Rational::zero());
+                    for j in 0..cols {
+                        let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some((re, im)) = entry_c(entry) else { return Ok(None) };
+                        acc = (acc.0.add(&re), acc.1.add(&im));
+                    }
+                    let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                let mut out = Vec::with_capacity(cols as usize);
+                for j in 0..cols {
+                    let mut acc = (Rational::zero(), Rational::zero());
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                        let Some((re, im)) = entry_c(entry) else { return Ok(None) };
+                        acc = (acc.0.add(&re), acc.1.add(&im));
+                    }
+                    out.push(complex_exact_to_term_session(self.session, &acc.0, &acc.1));
+                }
+                Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
             }
-            return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
-        }
-        // dim == 1 (default): sum down each column.
-        if rows == 1 {
-            let mut acc = Rational::zero();
-            for j in 0..cols {
-                let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
-                let Some(q) = entry_q(entry) else { return Ok(None) };
-                acc = acc.add(&q);
+            ElementParentKind::Integers | ElementParentKind::Rationals => {
+                let entry_q = |entry: MatrixEntry| -> Option<Rational> {
+                    match entry {
+                        MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
+                        MatrixEntry::Rational(r) => Some(r),
+                        _ => None,
+                    }
+                };
+                if dim == 2 {
+                    let mut out = Vec::with_capacity(rows as usize);
+                    for i in 0..rows {
+                        let mut acc = Rational::zero();
+                        for j in 0..cols {
+                            let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                            let Some(q) = entry_q(entry) else { return Ok(None) };
+                            acc = acc.add(&q);
+                        }
+                        let cell = rational_to_term_session(self.session, &acc);
+                        out.push(push_list(self.session, vec![cell]));
+                    }
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
+                }
+                if rows == 1 {
+                    let mut acc = Rational::zero();
+                    for j in 0..cols {
+                        let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.add(&q);
+                    }
+                    let term = rational_to_term_session(self.session, &acc);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                let mut out = Vec::with_capacity(cols as usize);
+                for j in 0..cols {
+                    let mut acc = Rational::zero();
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.add(&q);
+                    }
+                    out.push(rational_to_term_session(self.session, &acc));
+                }
+                Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
             }
-            let term = rational_to_term_session(self.session, &acc);
-            return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+            ElementParentKind::MachineReal => Ok(None),
         }
-        let mut out = Vec::with_capacity(cols as usize);
-        for j in 0..cols {
-            let mut acc = Rational::zero();
-            for i in 0..rows {
-                let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
-                let Some(q) = entry_q(entry) else { return Ok(None) };
-                acc = acc.add(&q);
-            }
-            out.push(rational_to_term_session(self.session, &acc));
-        }
-        Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
     }
 
     /// Integer `1`/`2` reduction axis.
@@ -1791,7 +1839,7 @@ impl<'a> ExecutionHost<'a> {
         matrix_ref: crate::domains::linear_algebra::MatrixRef,
         dim: u32,
     ) -> Result<Option<HostOutcome>> {
-        use crate::domains::linear_algebra::MatrixEntry;
+        use crate::domains::linear_algebra::{ElementParentKind, MatrixEntry};
         use crate::runtime::values::arena::push_list;
         use athena_numeric::Rational;
 
@@ -1801,50 +1849,104 @@ impl<'a> ExecutionHost<'a> {
         };
         let rows = matrix.shape().rows;
         let cols = matrix.shape().cols;
-        let entry_q = |entry: MatrixEntry| -> Option<Rational> {
-            match entry {
-                MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
-                MatrixEntry::Rational(r) => Some(r),
-                MatrixEntry::MachineF64(_) => None,
-                MatrixEntry::ComplexExact { .. } => None,
-            }
-        };
-        if dim == 2 {
-            let mut out = Vec::with_capacity(rows as usize);
-            for i in 0..rows {
-                let mut acc = Rational::one();
-                for j in 0..cols {
-                    let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
-                    let Some(q) = entry_q(entry) else { return Ok(None) };
-                    acc = acc.mul(&q);
+        match matrix.parent().element {
+            ElementParentKind::ComplexExact => {
+                let entry_c = |entry: MatrixEntry| -> Option<(Rational, Rational)> {
+                    match entry {
+                        MatrixEntry::ComplexExact { re, im } => Some((re, im)),
+                        _ => None,
+                    }
+                };
+                let mul = |a: &(Rational, Rational), b: &(Rational, Rational)| -> (Rational, Rational) {
+                    (
+                        a.0.mul(&b.0).add(&a.1.mul(&b.1).neg()),
+                        a.0.mul(&b.1).add(&a.1.mul(&b.0)),
+                    )
+                };
+                if dim == 2 {
+                    let mut out = Vec::with_capacity(rows as usize);
+                    for i in 0..rows {
+                        let mut acc = (Rational::one(), Rational::zero());
+                        for j in 0..cols {
+                            let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                            let Some(c) = entry_c(entry) else { return Ok(None) };
+                            acc = mul(&acc, &c);
+                        }
+                        let cell = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                        out.push(push_list(self.session, vec![cell]));
+                    }
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
                 }
-                let cell = rational_to_term_session(self.session, &acc);
-                out.push(push_list(self.session, vec![cell]));
+                if rows == 1 {
+                    let mut acc = (Rational::one(), Rational::zero());
+                    for j in 0..cols {
+                        let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some(c) = entry_c(entry) else { return Ok(None) };
+                        acc = mul(&acc, &c);
+                    }
+                    let term = complex_exact_to_term_session(self.session, &acc.0, &acc.1);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                let mut out = Vec::with_capacity(cols as usize);
+                for j in 0..cols {
+                    let mut acc = (Rational::one(), Rational::zero());
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                        let Some(c) = entry_c(entry) else { return Ok(None) };
+                        acc = mul(&acc, &c);
+                    }
+                    out.push(complex_exact_to_term_session(self.session, &acc.0, &acc.1));
+                }
+                Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
             }
-            return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
-        }
-        if rows == 1 {
-            let mut acc = Rational::one();
-            for j in 0..cols {
-                let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
-                let Some(q) = entry_q(entry) else { return Ok(None) };
-                acc = acc.mul(&q);
+            ElementParentKind::Integers | ElementParentKind::Rationals => {
+                let entry_q = |entry: MatrixEntry| -> Option<Rational> {
+                    match entry {
+                        MatrixEntry::Integer(z) => Some(Rational::from_integer(z)),
+                        MatrixEntry::Rational(r) => Some(r),
+                        _ => None,
+                    }
+                };
+                if dim == 2 {
+                    let mut out = Vec::with_capacity(rows as usize);
+                    for i in 0..rows {
+                        let mut acc = Rational::one();
+                        for j in 0..cols {
+                            let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                            let Some(q) = entry_q(entry) else { return Ok(None) };
+                            acc = acc.mul(&q);
+                        }
+                        let cell = rational_to_term_session(self.session, &acc);
+                        out.push(push_list(self.session, vec![cell]));
+                    }
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))));
+                }
+                if rows == 1 {
+                    let mut acc = Rational::one();
+                    for j in 0..cols {
+                        let Ok(entry) = matrix.get(0, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.mul(&q);
+                    }
+                    let term = rational_to_term_session(self.session, &acc);
+                    return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+                }
+                let mut out = Vec::with_capacity(cols as usize);
+                for j in 0..cols {
+                    let mut acc = Rational::one();
+                    for i in 0..rows {
+                        let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
+                        let Some(q) = entry_q(entry) else { return Ok(None) };
+                        acc = acc.mul(&q);
+                    }
+                    out.push(rational_to_term_session(self.session, &acc));
+                }
+                Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
             }
-            let term = rational_to_term_session(self.session, &acc);
-            return Ok(Some(HostOutcome::Value(SlotValue::Term(term))));
+            ElementParentKind::MachineReal => Ok(None),
         }
-        let mut out = Vec::with_capacity(cols as usize);
-        for j in 0..cols {
-            let mut acc = Rational::one();
-            for i in 0..rows {
-                let Ok(entry) = matrix.get(i, j) else { return Ok(None) };
-                let Some(q) = entry_q(entry) else { return Ok(None) };
-                acc = acc.mul(&q);
-            }
-            out.push(rational_to_term_session(self.session, &acc));
-        }
-        Ok(Some(HostOutcome::Value(SlotValue::Term(push_list(self.session, out)))))
     }
+
 
     fn apply_determinant(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 1 {
