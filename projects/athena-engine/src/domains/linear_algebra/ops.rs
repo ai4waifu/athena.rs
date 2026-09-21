@@ -1141,6 +1141,19 @@ pub fn extend_row_vector_scalar(matrix: &MatrixValue, scalar: MatrixEntry, prepe
             }
             MatrixValue::from_f64_row_major(1, cols + 1, data)
         }
+        (ElementParentKind::ComplexExact, MatrixEntry::ComplexExact { re, im }) => {
+            let mut data = Vec::with_capacity(cols as usize + 1);
+            if prepend {
+                data.push((clone_rational(&re), clone_rational(&im)));
+            }
+            for j in 0..cols {
+                data.push(complex_exact_entry(matrix.get(0, j)?)?);
+            }
+            if !prepend {
+                data.push((re, im));
+            }
+            MatrixValue::from_complex_exact_row_major(1, cols + 1, data)
+        }
         _ => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "extend_entry_parent_mismatch")),
     }
 }
