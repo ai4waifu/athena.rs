@@ -4,3 +4,4 @@
 
 pub mod patterns;
 pub mod registry;
+pub mod request_subst;

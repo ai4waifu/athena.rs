@@ -6,10 +6,57 @@ use athena_ir::ApplicationHead;
 use athena_types::{ExtensionOperatorId, Result, TermId};
 
 use super::re_eval_term;
-use crate::{execution::push_extension, runtime::session::Session};
+use crate::{
+    execution::{builtins::request_subst::substitute_binds_request, execute_ir_request, push_extension},
+    runtime::session::Session,
+};
+
+fn try_match_extension_pattern(
+    session: &Session,
+    op: ExtensionOperatorId,
+    terms: &[TermId],
+    pattern: &crate::reasoning::trs::TermPattern,
+) -> Option<HashMap<athena_types::SymbolId, TermId>> {
+    let call_op = ApplicationHead::Extension(op);
+    let mut binds = HashMap::new();
+    let ok = match pattern {
+        crate::reasoning::trs::TermPattern::Application { operator, arguments } => {
+            *operator == call_op
+                && arguments.len() == terms.len()
+                && arguments
+                    .iter()
+                    .zip(terms.iter())
+                    .all(|(p, a)| crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds))
+        }
+        crate::reasoning::trs::TermPattern::StructuralApplication(arguments) => {
+            arguments.len() == terms.len()
+                && arguments
+                    .iter()
+                    .zip(terms.iter())
+                    .all(|(p, a)| crate::execution::builtins::patterns::match_term_pattern(session, *a, p, &mut binds))
+        }
+        _ => false,
+    };
+    if ok { Some(binds) } else { None }
+}
 
 /// 尝试 Session 扩展规则；命中则替换并再求值，否则 `None`。
 pub(crate) fn try_apply_extension_down_values(session: &mut Session, op: ExtensionOperatorId, terms: &[TermId]) -> Result<Option<TermId>> {
+    if let Some(rules) = session
+        .defs
+        .extension_request_dispatch_rules(op)
+        .map(|r| r.iter().map(|(pattern, replacement)| (pattern.owning_copy(), replacement.owning_copy())).collect::<Vec<_>>())
+    {
+        for (pattern, request) in rules {
+            if let Some(binds) = try_match_extension_pattern(session, op, terms, &pattern) {
+                let request = substitute_binds_request(session, request, &binds);
+                let result_id = execute_ir_request(session, request)?;
+                let term = session.results.require_symbolic_term(result_id)?;
+                return Ok(Some(term));
+            }
+        }
+    }
+
     let Some(rules) = session
         .defs
         .extension_dispatch_rules(op)

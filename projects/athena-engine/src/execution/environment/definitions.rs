@@ -8,6 +8,7 @@ use std::collections::HashMap;
 
 use athena_types::{DispatchTableId, ExtensionOperatorId, SymbolId, TermId};
 
+use crate::api::request::AthenaRequest;
 use crate::domains::linear_algebra::MatrixRef;
 use crate::reasoning::trs::TermPattern;
 
@@ -24,6 +25,8 @@ pub struct DefinitionLayer {
     operator_tables: HashMap<ExtensionOperatorId, DispatchTableId>,
     /// `RegisterRuleDispatch` 头符号对其 Extension operator 的拥有关系。
     extension_rule_owners: HashMap<SymbolId, ExtensionOperatorId>,
+    /// Extension down-value 的可执行请求体（含控制流；优先于残差项规则）。
+    extension_request_rules: HashMap<ExtensionOperatorId, Vec<(TermPattern, AthenaRequest)>>,
     next_dispatch_table: u32,
 }
 
@@ -61,6 +64,12 @@ impl DefinitionLayer {
     pub fn register_extension_rule(&mut self, op: ExtensionOperatorId, pattern: TermPattern, replacement: TermId) {
         let table = self.ensure_table_for_operator(op);
         self.append_rule(table, pattern, replacement);
+    }
+
+    /// 追加 extension head 的可执行请求规则（`Return` / `Module` / `Do` 等）。
+    pub fn register_extension_request_rule(&mut self, op: ExtensionOperatorId, pattern: TermPattern, replacement: AthenaRequest) {
+        self.extension_request_rules.entry(op).or_default().push((pattern, replacement));
+        self.ensure_table_for_operator(op);
     }
 
     /// 分配独立分派表（供 `SessionCommand::RegisterRuleDispatch`）。
@@ -117,6 +126,11 @@ impl DefinitionLayer {
         self.dispatch_tables.get(table).map(Vec::as_slice)
     }
 
+    /// Extension 可执行请求规则（优先于残差项分派）。
+    pub fn extension_request_dispatch_rules(&self, op: ExtensionOperatorId) -> Option<&[(TermPattern, AthenaRequest)]> {
+        self.extension_request_rules.get(&op).map(Vec::as_slice)
+    }
+
     /// 查 Extension head 对应的分派表句柄。
     pub fn dispatch_table_for(&self, op: ExtensionOperatorId) -> Option<DispatchTableId> {
         self.operator_tables.get(&op).copied()
@@ -135,6 +149,7 @@ impl DefinitionLayer {
         if let Some(table) = self.operator_tables.remove(&op) {
             self.dispatch_tables.remove(&table);
         }
+        self.extension_request_rules.remove(&op);
         self.extension_rule_owners.retain(|_, owned| *owned != op);
     }
 
@@ -146,6 +161,7 @@ impl DefinitionLayer {
         self.dispatch_tables.clear();
         self.operator_tables.clear();
         self.extension_rule_owners.clear();
+        self.extension_request_rules.clear();
         self.next_dispatch_table = 0;
     }
 
