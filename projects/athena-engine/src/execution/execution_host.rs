@@ -369,16 +369,9 @@ impl<'a> ExecutionHost<'a> {
             }
         }
         let term = self.slot_as_term(args[0])?;
-        let term = if matches!(
-            op,
-            SemanticOperator::IntegerDigits
-                | SemanticOperator::Reverse
-                | SemanticOperator::First
-                | SemanticOperator::Rest
-                | SemanticOperator::Most
-                | SemanticOperator::Flatten
-                | SemanticOperator::Length
-        ) {
+        // Only fold nested exact ops needed for harness compare / digit lists. Do not pre-eval
+        // `Flatten` / `Hold*` args — `Flatten[HoldComplete[…]]` must stay residual.
+        let term = if matches!(op, SemanticOperator::IntegerDigits | SemanticOperator::Reverse) {
             evaluate_compare_operand(self.session, term)?
         }
         else {
