@@ -152,6 +152,10 @@ pub enum SemanticOperator {
     LessEqual,
     /// `>=`
     GreaterEqual,
+    /// 数值 / 可比较链上的最大值（方言 `Max`）。
+    Max,
+    /// 数值 / 可比较链上的最小值（方言 `Min`）。
+    Min,
     /// 布尔与。
     And,
     /// 布尔或。
@@ -348,6 +352,8 @@ impl SemanticOperator {
             Self::Greater => 14,
             Self::LessEqual => 15,
             Self::GreaterEqual => 16,
+            Self::Max => 253,
+            Self::Min => 254,
             Self::And => 17,
             Self::Or => 18,
             Self::Not => 19,
@@ -457,6 +463,8 @@ impl SemanticOperator {
             14 => Some(Self::Greater),
             15 => Some(Self::LessEqual),
             16 => Some(Self::GreaterEqual),
+            253 => Some(Self::Max),
+            254 => Some(Self::Min),
             17 => Some(Self::And),
             18 => Some(Self::Or),
             19 => Some(Self::Not),
@@ -570,6 +578,8 @@ impl SemanticOperator {
             Self::Greater => "Greater",
             Self::LessEqual => "LessEqual",
             Self::GreaterEqual => "GreaterEqual",
+            Self::Max => "Max",
+            Self::Min => "Min",
             Self::And => "And",
             Self::Or => "Or",
             Self::Not => "Not",

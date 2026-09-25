@@ -126,6 +126,44 @@ pub(crate) fn evaluate_compare_terms(session: &mut Session, op: SemanticOperator
     Ok(CompareOutcome::Boolean(ok))
 }
 
+fn flatten_min_max_args(session: &Session, terms: Vec<TermId>) -> Vec<TermId> {
+    if terms.len() == 1 {
+        if let Some(athena_ir::TermNode::Collection { elements, .. }) = session.arena.get(terms[0]) {
+            return elements.clone();
+        }
+    }
+    terms
+}
+
+/// `Max` / `Min`：全为数值时折叠为极值，否则残差语义应用。
+pub(crate) fn evaluate_min_max_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
+    if terms.is_empty() {
+        return Err(diag("semantic_operator_arity"));
+    }
+    let pick_max = match op {
+        SemanticOperator::Max => true,
+        SemanticOperator::Min => false,
+        _ => return Err(diag("semantic_operator_not_implemented")),
+    };
+    let flat = flatten_min_max_args(session, terms);
+    if flat.is_empty() {
+        return Err(diag("semantic_operator_arity"));
+    }
+    let numbers: Option<Vec<_>> = flat.iter().map(|t| number_of(session, *t).map(clone_number)).collect();
+    let Some(nums) = numbers else {
+        return Ok(push_semantic(session, op, flat));
+    };
+    let mut acc = clone_number(&nums[0]);
+    for n in nums.iter().skip(1) {
+        let ord = num_compare(&acc, n).ok_or_else(|| diag("compare_failed"))?;
+        let better = if pick_max { ord == Ordering::Less } else { ord == Ordering::Greater };
+        if better {
+            acc = clone_number(n);
+        }
+    }
+    Ok(push_number(session, acc))
+}
+
 /// 比较求值结果（数值链 → Boolean；广播 / 残差 → Term）。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CompareOutcome {
