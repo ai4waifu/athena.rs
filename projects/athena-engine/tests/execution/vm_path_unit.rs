@@ -194,6 +194,40 @@ fn execute_ir_request_define_and_read_uses_vm_binding() {
 }
 
 #[test]
+fn execute_ir_request_materialized_list_residual_define_preserves_length() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_types::{BindingEvaluationPolicy, BindingKind};
+    use athena_engine::runtime::values::arena::push_list;
+
+    let mut session = Session::new();
+    let elems: Vec<_> = (0..20).map(|i| session.builder().int(i, Default::default())).collect();
+    let list = push_list(&mut session, elems);
+    let sym_term = session.builder().symbol("nums", Default::default());
+    let symbol = match session.arena.get(sym_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol, got {other:?}"),
+    };
+    let define = AthenaRequest::Command(SessionCommand::Define {
+        symbol,
+        value: list,
+        kind: BindingKind::Session,
+        evaluation: BindingEvaluationPolicy::StoreResidualTerm,
+    });
+    execute_ir_request(&mut session, define).expect("define");
+
+    let len = session.builder().symbol("nums", Default::default());
+    let len_call = session
+        .builder()
+        .application(ApplicationHead::Semantic(SemanticOperator::Length), vec![len], Default::default());
+    let read_id = execute_ir_request(&mut session, AthenaRequest::Term(len_call)).expect("length");
+    let out = session.results.get(read_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20) => {}
+        other => panic!("expected Length==20, got {other:?}"),
+    }
+}
+
+#[test]
 fn execute_ir_request_deferred_define_evaluates_on_vm_read() {
     use athena_engine::api::request::SessionCommand;
     use athena_types::{BindingEvaluationPolicy, BindingKind};

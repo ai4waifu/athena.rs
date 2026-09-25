@@ -5,7 +5,8 @@
 //! 不桥接到已删除的栈式解释器。
 
 use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
-use athena_types::{BindingEvaluationPolicy, BindingKind, Diagnostic, DiagnosticCode, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, CollectionKind, Diagnostic, DiagnosticCode, Result, TermId};
+use athena_vm::MAX_HOST_ARGS;
 
 use crate::{
     api::request::{AthenaRequest, ControlPlan, SessionCommand},
@@ -427,6 +428,63 @@ impl ExecutionCompiler {
         Ok(value)
     }
 
+    fn emit_construct_collection_ssa(
+        &self,
+        builder: &mut ModuleBuilder,
+        operations: &mut Vec<Operation>,
+        kind: CollectionKind,
+        elements: Vec<SsaValueId>,
+    ) -> Result<SsaValueId> {
+        if elements.len() > MAX_HOST_ARGS {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation)
+                .detail("component", "ExecutionCompiler")
+                .detail("reason", "construct_collection_chunk_internal_overflow"));
+        }
+        let ssa = builder.ssa();
+        operations.push(Operation {
+            result: Some(ssa),
+            result_type: ExecutionValueType::Term,
+            kind: OperationKind::ConstructCollection { kind, elements },
+            effect_in: None,
+            effect_out: None,
+        });
+        Ok(ssa)
+    }
+
+    /// 将已求值的元素 SSA 分块嵌套为集合（每步 ≤ [`MAX_HOST_ARGS`]）。
+    fn lower_construct_collection_ssa(
+        &self,
+        builder: &mut ModuleBuilder,
+        operations: &mut Vec<Operation>,
+        kind: CollectionKind,
+        elements: Vec<SsaValueId>,
+    ) -> Result<SsaValueId> {
+        let mut level = elements;
+        while level.len() > MAX_HOST_ARGS {
+            let mut next = Vec::new();
+            for chunk in level.chunks(MAX_HOST_ARGS) {
+                next.push(self.emit_construct_collection_ssa(builder, operations, kind, chunk.to_vec())?);
+            }
+            level = next;
+        }
+        self.emit_construct_collection_ssa(builder, operations, kind, level)
+    }
+
+    fn lower_construct_collection_terms(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        operations: &mut Vec<Operation>,
+        kind: CollectionKind,
+        items: &[TermId],
+    ) -> Result<SsaValueId> {
+        let mut elements = Vec::with_capacity(items.len());
+        for item in items {
+            elements.push(self.lower_pure_expr(session, builder, operations, *item)?);
+        }
+        self.lower_construct_collection_ssa(builder, operations, kind, elements)
+    }
+
     /// 将项 elaborate 为 SSA 操作（无 Session 写入副作用）。
     ///
     /// 实参求值策略经 [`argument_evaluation_for_semantic`]，不在此内联 Hold 表。
@@ -565,19 +623,25 @@ impl ExecutionCompiler {
             Some(TermNode::Collection { kind: coll_kind, elements: items }) => {
                 let coll_kind = *coll_kind;
                 let items = items.clone();
-                let mut elements = Vec::with_capacity(items.len());
-                for item in items {
-                    elements.push(self.lower_pure_expr(session, builder, operations, item)?);
-                }
-                let ssa = builder.ssa();
-                operations.push(Operation {
-                    result: Some(ssa),
-                    result_type: ExecutionValueType::Term,
-                    kind: OperationKind::ConstructCollection { kind: coll_kind, elements },
-                    effect_in: None,
-                    effect_out: None,
+                let materialized = items.iter().all(|id| {
+                    matches!(
+                        session.arena.get(*id),
+                        Some(TermNode::Atom(_)) | Some(TermNode::Collection { .. })
+                    )
                 });
-                Ok(ssa)
+                if materialized {
+                    let root = builder.push_term_root_id(&session.arena, term)?;
+                    let ssa = builder.ssa();
+                    operations.push(Operation {
+                        result: Some(ssa),
+                        result_type: ExecutionValueType::Term,
+                        kind: OperationKind::LoadTerm { root },
+                        effect_in: None,
+                        effect_out: None,
+                    });
+                    return Ok(ssa);
+                }
+                self.lower_construct_collection_terms(session, builder, operations, coll_kind, &items)
             }
             None => {
                 Err(Diagnostic::new(DiagnosticCode::InvalidIndex).detail("component", "ExecutionCompiler").detail("reason", "missing_term"))
