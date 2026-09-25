@@ -85,7 +85,7 @@ pub enum ZeroPowerZeroConvention {
 }
 
 /// 顶层 VM 解释步数默认上限（嵌套入口共享同一计数）。
-pub const DEFAULT_VM_STEP_BUDGET: u64 = 1_000_000;
+pub const DEFAULT_VM_STEP_BUDGET: u64 = 100_000_000;
 
 /// 一次顶层请求共享的执行控制（嵌套 `re_eval` / host 子调用继承）。
 ///
