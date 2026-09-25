@@ -1712,6 +1712,133 @@ fn compile_and_execute_extract_matrix_bindings() {
         session.arena.get(term),
         Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(20)
     ));
+}
+
+#[test]
+fn compile_and_execute_extract_collection_binding_with_symbol_index() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::execution::execute_ir_request;
+    use athena_ir::ApplicationHead;
+    use athena_ir::TermNode;
+    use athena_numeric::Integer;
+    use athena_types::BindingEvaluationPolicy;
+
+    let mut session = Session::new();
+    let three = session.builder().int(3, Default::default());
+    let list = session.builder().list(vec![three, three], Default::default());
+    let two = session.builder().int(2, Default::default());
+    let nums_term = session.builder().symbol("nums", Default::default());
+    let nums = match session.arena.get(nums_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol nums, got {other:?}"),
+    };
+    let i_term = session.builder().symbol("i", Default::default());
+    let i = match session.arena.get(i_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol i, got {other:?}"),
+    };
+    let extract = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Extract),
+        vec![nums_term, i_term],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(
+        &mut session,
+        AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: nums,
+                    value: list,
+                    kind: athena_types::BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: i,
+                    value: two,
+                    kind: athena_types::BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Term(extract),
+            ],
+        }),
+    )
+    .expect("extract collection binding");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(
+        matches!(
+            session.arena.get(term),
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)
+        ),
+        "expected 3, got {term:?}"
+    );
+
+    let mut session = Session::new();
+    let three = session.builder().int(3, Default::default());
+    let list = session.builder().list(vec![three, three], Default::default());
+    let one = session.builder().int(1, Default::default());
+    let nums_term = session.builder().symbol("nums", Default::default());
+    let nums = match session.arena.get(nums_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol nums, got {other:?}"),
+    };
+    let i_term = session.builder().symbol("i", Default::default());
+    let i = match session.arena.get(i_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol i, got {other:?}"),
+    };
+    let out_term = session.builder().symbol("out", Default::default());
+    let out = match session.arena.get(out_term) {
+        Some(TermNode::Atom(Atom::Symbol(id))) => *id,
+        other => panic!("expected symbol out, got {other:?}"),
+    };
+    let extract = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Extract),
+        vec![nums_term, i_term],
+        Default::default(),
+    );
+    let result_id = execute_ir_request(
+        &mut session,
+        AthenaRequest::Control(ControlPlan::Sequence {
+            steps: vec![
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: nums,
+                    value: list,
+                    kind: athena_types::BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: i,
+                    value: one,
+                    kind: athena_types::BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Command(SessionCommand::Define {
+                    symbol: out,
+                    value: extract,
+                    kind: athena_types::BindingKind::Session,
+                    evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+                }),
+                AthenaRequest::Control(ControlPlan::EarlyReturn { value: out_term }),
+            ],
+        }),
+    )
+    .expect("extract via out binding");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    assert!(
+        matches!(
+            session.arena.get(term),
+            Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(3)
+        ),
+        "expected early return 3, got {term:?}"
+    );
+}
+
+#[test]
+fn compile_and_execute_extract_matrix_bindings_row() {
+    use athena_engine::api::request::SessionCommand;
+    use athena_engine::domains::linear_algebra::MatrixValue;
+    use athena_ir::ApplicationHead;
+    use athena_numeric::Integer;
 
     let mut session = Session::new();
     let a_term = session.builder().symbol("A", Default::default());

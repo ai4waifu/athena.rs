@@ -3,10 +3,11 @@
 use std::collections::HashMap;
 
 use athena_ir::ApplicationHead;
-use athena_types::{ExtensionOperatorId, Result, TermId};
+use athena_types::{BindingEvaluationPolicy, BindingKind, ExtensionOperatorId, Result, TermId};
 
 use super::re_eval_term;
 use crate::{
+    api::request::{AthenaRequest, ControlPlan, SessionCommand},
     execution::{builtins::request_subst::substitute_binds_request, execute_ir_request, push_extension},
     runtime::session::Session,
 };
@@ -40,6 +41,30 @@ fn try_match_extension_pattern(
     if ok { Some(binds) } else { None }
 }
 
+fn extension_request_with_param_bindings(
+    session: &mut Session,
+    request: AthenaRequest,
+    binds: &HashMap<athena_types::SymbolId, TermId>,
+) -> AthenaRequest {
+    let request = substitute_binds_request(session, request, binds);
+    if binds.is_empty() {
+        return request;
+    }
+    let mut steps: Vec<AthenaRequest> = binds
+        .iter()
+        .map(|(symbol, value)| {
+            AthenaRequest::Command(SessionCommand::Define {
+                symbol: *symbol,
+                value: *value,
+                kind: BindingKind::Session,
+                evaluation: BindingEvaluationPolicy::EvaluateBeforeStore,
+            })
+        })
+        .collect();
+    steps.push(request);
+    AthenaRequest::Control(ControlPlan::Sequence { steps })
+}
+
 /// 尝试 Session 扩展规则；命中则替换并再求值，否则 `None`。
 pub(crate) fn try_apply_extension_down_values(session: &mut Session, op: ExtensionOperatorId, terms: &[TermId]) -> Result<Option<TermId>> {
     if let Some(rules) = session
@@ -49,7 +74,7 @@ pub(crate) fn try_apply_extension_down_values(session: &mut Session, op: Extensi
     {
         for (pattern, request) in rules {
             if let Some(binds) = try_match_extension_pattern(session, op, terms, &pattern) {
-                let request = substitute_binds_request(session, request, &binds);
+                let request = extension_request_with_param_bindings(session, request, &binds);
                 let result_id = execute_ir_request(session, request)?;
                 let term = session.results.require_symbolic_term(result_id)?;
                 return Ok(Some(term));
