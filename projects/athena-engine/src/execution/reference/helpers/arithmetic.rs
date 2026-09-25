@@ -405,6 +405,33 @@ pub(crate) fn fold_power_symbolic(session: &mut Session, terms: Vec<TermId>) -> 
     push_semantic(session, SemanticOperator::Power, terms)
 }
 
+/// `Mod` / `Quotient`：精确整数 · Mathematica 向零截断商与余数。
+pub(crate) fn evaluate_mod_quotient_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
+    if terms.len() != 2 {
+        return Err(diag("semantic_operator_arity"));
+    }
+    let pick_quotient = match op {
+        SemanticOperator::Quotient => true,
+        SemanticOperator::Mod => false,
+        _ => return Err(diag("semantic_operator_not_implemented")),
+    };
+    let a = number_of(session, terms[0]).map(clone_number);
+    let b = number_of(session, terms[1]).map(clone_number);
+    let (Some(a), Some(b)) = (a, b) else {
+        return Ok(push_semantic(session, op, terms));
+    };
+    let (ai, bi) = (a.as_exact_integer(), b.as_exact_integer());
+    let (Some(ai), Some(bi)) = (ai, bi) else {
+        return Ok(push_semantic(session, op, terms));
+    };
+    if bi == 0 {
+        return Ok(push_indeterminate(session));
+    }
+    let quotient = ai / bi;
+    let value = if pick_quotient { quotient } else { ai - bi * quotient };
+    Ok(push_number(session, Number::small_int(value)))
+}
+
 /// Reference 与 `ExecutionHost` 共用的算术求值（数值折叠 · 矩阵乘 · 符号残差）。
 pub(crate) fn evaluate_arithmetic_terms(session: &mut Session, op: SemanticOperator, terms: Vec<TermId>) -> Result<TermId> {
     let numbers = terms.iter().map(|t| number_of(session, *t).map(clone_number)).collect::<Option<Vec<_>>>();

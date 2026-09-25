@@ -156,6 +156,10 @@ pub enum SemanticOperator {
     Max,
     /// 数值 / 可比较链上的最小值（方言 `Min`）。
     Min,
+    /// 整数余数（方言 `Mod`；`m - n Quotient[m, n]`，除数截断商）。
+    Mod,
+    /// 整数商（方言 `Quotient`；向零截断）。
+    Quotient,
     /// 布尔与。
     And,
     /// 布尔或。
@@ -167,6 +171,8 @@ pub enum SemanticOperator {
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
+    /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
+    IntegerDigits,
     /// 集合长度。
     Length,
     /// 首元素。
@@ -354,6 +360,9 @@ impl SemanticOperator {
             Self::GreaterEqual => 16,
             Self::Max => 253,
             Self::Min => 254,
+            Self::Mod => 255,
+            Self::Quotient => 256,
+            Self::IntegerDigits => 257,
             Self::And => 17,
             Self::Or => 18,
             Self::Not => 19,
@@ -465,6 +474,9 @@ impl SemanticOperator {
             16 => Some(Self::GreaterEqual),
             253 => Some(Self::Max),
             254 => Some(Self::Min),
+            255 => Some(Self::Mod),
+            256 => Some(Self::Quotient),
+            257 => Some(Self::IntegerDigits),
             17 => Some(Self::And),
             18 => Some(Self::Or),
             19 => Some(Self::Not),
@@ -580,11 +592,14 @@ impl SemanticOperator {
             Self::GreaterEqual => "GreaterEqual",
             Self::Max => "Max",
             Self::Min => "Min",
+            Self::Mod => "Mod",
+            Self::Quotient => "Quotient",
             Self::And => "And",
             Self::Or => "Or",
             Self::Not => "Not",
             Self::TrueQ => "TrueQ",
             Self::Abs => "Abs",
+            Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",
             Self::Rest => "Rest",

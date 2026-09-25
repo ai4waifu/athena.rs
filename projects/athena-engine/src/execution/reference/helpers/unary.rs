@@ -10,7 +10,7 @@ use crate::{
     runtime::{
         session::Session,
         values::{
-            arena::{push_list, push_symbol_name},
+            arena::{push_int, push_list, push_symbol_name},
             numeric_clone::clone_number,
         },
     },
@@ -48,6 +48,29 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             else {
                 Ok(push_semantic(session, SemanticOperator::Sqrt, vec![term]))
             }
+        }
+        SemanticOperator::IntegerDigits => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(i) = n.as_exact_integer() {
+                    if i == 0 {
+                        return Ok(push_list(session, vec![]));
+                    }
+                    let negative = i < 0;
+                    let mut v = i.abs();
+                    let mut digits = Vec::new();
+                    while v > 0 {
+                        digits.push(v % 10);
+                        v /= 10;
+                    }
+                    digits.reverse();
+                    if negative {
+                        digits[0] = -digits[0];
+                    }
+                    let items = digits.into_iter().map(|d| push_int(session, d)).collect();
+                    return Ok(push_list(session, items));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::IntegerDigits, vec![term]))
         }
         SemanticOperator::Length => {
             let len = match session.arena.get(term) {
@@ -95,7 +118,7 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 rev.reverse();
                 Ok(push_list(session, rev))
             }
-            Some(athena_ir::TermNode::Application { head, arguments }) => {
+            Some(athena_ir::TermNode::Application { head, arguments }) if arguments.len() > 1 => {
                 let head = *head;
                 let mut rev = arguments.clone();
                 rev.reverse();

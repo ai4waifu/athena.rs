@@ -40,6 +40,32 @@ fn sem(op: SemanticOperator, args: Vec<Tid>, s: &mut Session) -> Tid {
     push_semantic(s, op, args)
 }
 
+#[test]
+fn equal_integer_digits_palindrome() {
+    use athena_ir::TermNode;
+    let mut s = Session::new();
+    let n = int(123, &mut s);
+    let left = sem(SemanticOperator::IntegerDigits, vec![n], &mut s);
+    let right = sem(SemanticOperator::Reverse, vec![left], &mut s);
+    let digits = evaluate_term(&mut s, left).term;
+    assert!(matches!(s.arena.get(digits), Some(TermNode::Collection { .. })));
+    let e = sem(SemanticOperator::Equal, vec![left, right], &mut s);
+    assert_eq!(eval(&mut s, e), "False");
+}
+
+#[test]
+fn equal_collection_structural() {
+    let mut s = Session::new();
+    let a = list(vec![int(1, &mut s), int(2, &mut s), int(3, &mut s)], &mut s);
+    let b = list(vec![int(3, &mut s), int(2, &mut s), int(1, &mut s)], &mut s);
+    let e = sem(SemanticOperator::Equal, vec![a, b], &mut s);
+    assert_eq!(eval(&mut s, e), "False");
+    let c = list(vec![int(1, &mut s), int(2, &mut s), int(1, &mut s)], &mut s);
+    let d = list(vec![int(1, &mut s), int(2, &mut s), int(1, &mut s)], &mut s);
+    let e2 = sem(SemanticOperator::Equal, vec![c, d], &mut s);
+    assert_eq!(eval(&mut s, e2), "True");
+}
+
 fn unary(f: UnaryFunction, args: Vec<Tid>, s: &mut Session) -> Tid {
     push_semantic(s, SemanticOperator::from_unary(f), args)
 }
@@ -79,6 +105,13 @@ fn arithmetic_normalization() {
     assert_eq!(eval(&mut s, e), "7");
     let e = sem(SemanticOperator::Min, vec![int(3, &mut s), int(7, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "3");
+    let e = sem(SemanticOperator::Mod, vec![int(7, &mut s), int(3, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "1");
+    let e = sem(SemanticOperator::Quotient, vec![int(7, &mut s), int(3, &mut s)], &mut s);
+    assert_eq!(eval(&mut s, e), "2");
+    let e = sem(SemanticOperator::IntegerDigits, vec![int(123, &mut s)], &mut s);
+    let digits = eval(&mut s, e);
+    assert!(digits.contains("1") && digits.contains("2") && digits.contains("3"), "got {digits}");
     // 未知算子惰性重建
     let e = ext("Foo", vec![int(1, &mut s), symbol("y", &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "Foo[1, y]");
@@ -99,6 +132,13 @@ fn comparisons_and_logic() {
     assert_eq!(eval(&mut s, e), "True");
     let e = sem(SemanticOperator::Equal, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     assert_eq!(eval(&mut s, e), "False");
+    let digits = sem(SemanticOperator::IntegerDigits, vec![int(121, &mut s)], &mut s);
+    let rev = sem(SemanticOperator::Reverse, vec![digits], &mut s);
+    let d = eval(&mut s, digits);
+    let r = eval(&mut s, rev);
+    assert_eq!(d, r, "digits vs reverse");
+    let e = sem(SemanticOperator::Identical, vec![digits, rev], &mut s);
+    assert_eq!(eval(&mut s, e), "True");
     // 比较链：1 < 2 < 3（嵌套未求值形式）
     let nested = sem(SemanticOperator::Less, vec![int(1, &mut s), int(2, &mut s)], &mut s);
     let e = sem(SemanticOperator::Less, vec![nested, int(3, &mut s)], &mut s);

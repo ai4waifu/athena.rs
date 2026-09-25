@@ -15,6 +15,42 @@ use crate::{
     },
 };
 
+#[cfg(test)]
+mod collection_equal_tests {
+    use super::collection_structural_equal;
+    use crate::runtime::{Session, values::arena::{push_int, push_list}};
+
+    #[test]
+    fn detects_unequal_lists() {
+        let mut s = Session::new();
+        let i1 = push_int(&mut s, 1);
+        let i2 = push_int(&mut s, 2);
+        let i3 = push_int(&mut s, 3);
+        let a = push_list(&mut s, vec![i1, i2, i3]);
+        let b = push_list(&mut s, vec![i3, i2, i1]);
+        assert_eq!(collection_structural_equal(&s, a, b), Some(false));
+    }
+}
+
+/// 两棵集合 term 是否逐元素结构相等（`===` 列表语义，非逐元素广播）。
+pub(crate) fn collection_structural_equal(session: &Session, left: TermId, right: TermId) -> Option<bool> {
+    let (xs, ys) = match (session.arena.get(left), session.arena.get(right)) {
+        (Some(athena_ir::TermNode::Collection { elements: xs, .. }), Some(athena_ir::TermNode::Collection { elements: ys, .. })) => {
+            (xs, ys)
+        }
+        _ => return None,
+    };
+    if xs.len() != ys.len() {
+        return Some(false);
+    }
+    for (x, y) in xs.iter().zip(ys.iter()) {
+        if !session.arena.structural_eq(*x, *y) {
+            return Some(false);
+        }
+    }
+    Some(true)
+}
+
 pub(crate) fn compare_list_broadcast(
     session: &mut Session,
     op: SemanticOperator,
