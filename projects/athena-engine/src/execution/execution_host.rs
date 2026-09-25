@@ -160,11 +160,10 @@ impl<'a> ExecutionHost<'a> {
             if let Some(matrix_ref) = self.session.matrix_binding(*symbol) {
                 return Ok(Some(matrix_ref));
             }
-            let HostOutcome::Value(value) = self.read_binding(SlotValue::Symbol(*symbol))?
-            else {
-                return Ok(None);
-            };
-            return self.matrix_ref_or_intern_numeric(value);
+            if let Some(value) = self.own_binding_value(*symbol) {
+                return self.matrix_ref_or_intern_numeric(value);
+            }
+            return Ok(None);
         }
         if !matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
             return Ok(None);
@@ -243,17 +242,42 @@ impl<'a> ExecutionHost<'a> {
         })
     }
 
+    /// Session / scope Own lookup for runtime index and arithmetic materialization.
+    ///
+    /// Skips `residual_binding` re-evaluation so symbolic calculus (`diff(x^3, x)`) does not recurse.
+    fn own_binding_value(&mut self, symbol: SymbolId) -> Option<SlotValue> {
+        for frame in self.frames.as_slice().iter().rev() {
+            match frame.lookup(symbol) {
+                Some(LocalBinding::Value(term) | LocalBinding::Unique(term)) => {
+                    return Some(SlotValue::Term(term));
+                }
+                Some(LocalBinding::Matrix(matrix)) => {
+                    let value = self.session.insert_matrix_value(matrix);
+                    return Some(SlotValue::Value(value));
+                }
+                Some(LocalBinding::Cleared) => return Some(SlotValue::Symbol(symbol)),
+                None => {}
+            }
+        }
+        if let Some(term) = self.session.defs.binding(symbol) {
+            return Some(SlotValue::Term(term));
+        }
+        if let Some(matrix) = self.session.defs.matrix_binding(symbol) {
+            let value = self.session.insert_matrix_value(matrix);
+            return Some(SlotValue::Value(value));
+        }
+        None
+    }
+
     fn resolve_term_through_binding(&mut self, term: TermId) -> Result<TermId> {
         if number_of(self.session, term).is_some() {
             return Ok(term);
         }
         if let Some(TermNode::Atom(athena_ir::Atom::Symbol(symbol))) = self.session.arena.get(term) {
-            let HostOutcome::Value(value) = self.read_binding(SlotValue::Symbol(*symbol))?
-            else {
-                return Ok(term);
-            };
-            if let SlotValue::Term(bound) = value {
-                return Ok(bound);
+            if let Some(SlotValue::Term(bound)) = self.own_binding_value(*symbol) {
+                if number_of(self.session, bound).is_some() {
+                    return Ok(bound);
+                }
             }
         }
         Ok(term)
@@ -1541,26 +1565,22 @@ impl<'a> ExecutionHost<'a> {
         let int_from_term = |session: &crate::runtime::session::Session, term: TermId| -> Option<i64> {
             number_of(session, term).and_then(|v| v.as_exact_integer())
         };
-        let int_from_symbol = |host: &mut Self, symbol: SymbolId| -> Result<Option<i64>> {
-            let HostOutcome::Value(value) = host.read_binding(SlotValue::Symbol(symbol))?
-            else {
-                return Ok(None);
-            };
-            match value {
-                SlotValue::Term(term) => Ok(int_from_term(host.session, term)),
-                _ => Ok(None),
+        let int_from_symbol = |host: &mut Self, symbol: SymbolId| -> Option<i64> {
+            match host.own_binding_value(symbol) {
+                Some(SlotValue::Term(term)) => int_from_term(host.session, term),
+                _ => None,
             }
         };
 
         if let SlotValue::Symbol(symbol) = index_slot {
-            return int_from_symbol(self, symbol);
+            return Ok(int_from_symbol(self, symbol));
         }
         if let SlotValue::Term(term) = index_slot {
             if let Some(n) = int_from_term(self.session, term) {
                 return Ok(Some(n));
             }
             if let Some(TermNode::Atom(Atom::Symbol(symbol))) = self.session.arena.get(term) {
-                return int_from_symbol(self, *symbol);
+                return Ok(int_from_symbol(self, *symbol));
             }
             return Ok(None);
         }
@@ -1569,7 +1589,7 @@ impl<'a> ExecutionHost<'a> {
             return Ok(Some(n));
         }
         if let Some(TermNode::Atom(Atom::Symbol(symbol))) = self.session.arena.get(index_term) {
-            return int_from_symbol(self, *symbol);
+            return Ok(int_from_symbol(self, *symbol));
         }
         Ok(None)
     }
