@@ -8,7 +8,7 @@ use athena_types::{BindingEvaluationPolicy, BindingKind, ExtensionOperatorId, Re
 use super::re_eval_term;
 use crate::{
     api::request::{AthenaRequest, ControlPlan, SessionCommand},
-    execution::{builtins::request_subst::substitute_binds_request, execute_ir_request, push_extension},
+    execution::{execute_ir_request, push_extension},
     runtime::session::Session,
 };
 
@@ -46,7 +46,8 @@ fn extension_request_with_param_bindings(
     request: AthenaRequest,
     binds: &HashMap<athena_types::SymbolId, TermId>,
 ) -> AthenaRequest {
-    let request = substitute_binds_request(session, request, binds);
+    // 仅通过前置 `Define` 注入形参初值，勿 `substitute_binds` 内联实参：
+    // 循环条件若写成 `a >= b` 且体内更新 `a`，内联会把谓词钉死在调用点字面量上（无限循环）。
     if binds.is_empty() {
         return request;
     }

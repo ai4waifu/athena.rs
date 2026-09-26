@@ -664,6 +664,45 @@ impl ExecutionCompiler {
         }
     }
 
+    /// 分支 / `LoopWhile` 谓词：比较与逻辑算子直接 lowering；符号绑定等经 `TrueQ` 落成 VM `Boolean` 槽。
+    pub(crate) fn lower_predicate_expr(
+        &self,
+        session: &mut Session,
+        builder: &mut ModuleBuilder,
+        operations: &mut Vec<Operation>,
+        term: TermId,
+    ) -> Result<SsaValueId> {
+        match self.require_boolean_atom(session, term) {
+            Ok(cond_bool) => {
+                let cond_value = builder.ssa();
+                let cond_constant = builder.push_constant(ConstantValue::boolean(cond_bool));
+                operations.push(Operation {
+                    result: Some(cond_value),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::Constant { constant: cond_constant },
+                    effect_in: None,
+                    effect_out: None,
+                });
+                Ok(cond_value)
+            }
+            Err(_) => {
+                let value = self.lower_pure_expr(session, builder, operations, term)?;
+                if term_yields_boolean_ssa(session, term) {
+                    return Ok(value);
+                }
+                let cond_value = builder.ssa();
+                operations.push(Operation {
+                    result: Some(cond_value),
+                    result_type: ExecutionValueType::Boolean,
+                    kind: OperationKind::ApplySemanticOperator { operator: SemanticOperator::TrueQ, args: vec![value] },
+                    effect_in: None,
+                    effect_out: None,
+                });
+                Ok(cond_value)
+            }
+        }
+    }
+
     fn require_boolean_atom(&self, session: &mut Session, term: TermId) -> Result<bool> {
         match session.arena.get(term) {
             Some(TermNode::Atom(Atom::Boolean(value))) => Ok(*value),
@@ -690,6 +729,27 @@ impl ExecutionCompiler {
                 Err(Diagnostic::new(DiagnosticCode::InvalidIndex).detail("component", "ExecutionCompiler").detail("reason", "missing_term"))
             }
         }
+    }
+}
+
+fn term_yields_boolean_ssa(session: &Session, term: TermId) -> bool {
+    match session.arena.get(term) {
+        Some(TermNode::Atom(Atom::Boolean(_))) => true,
+        Some(TermNode::Application { head, .. }) => matches!(*head, ApplicationHead::Semantic(op) if matches!(
+            op,
+            SemanticOperator::Not
+                | SemanticOperator::And
+                | SemanticOperator::Or
+                | SemanticOperator::TrueQ
+                | SemanticOperator::Identical
+                | SemanticOperator::Equal
+                | SemanticOperator::Unequal
+                | SemanticOperator::Less
+                | SemanticOperator::Greater
+                | SemanticOperator::LessEqual
+                | SemanticOperator::GreaterEqual
+        )),
+        _ => false,
     }
 }
 
