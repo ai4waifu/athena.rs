@@ -59,6 +59,7 @@ pub fn argument_evaluation_for_semantic(operator: SemanticOperator, arg_count: u
                     | SemanticOperator::Map
                     | SemanticOperator::MapIndexed
                     | SemanticOperator::MapThread
+                    | SemanticOperator::MapAt
                     // `Array` first arg is an operator value (`f` / 0-ary head), same capture as `Map`.
                     | SemanticOperator::Array
             ))

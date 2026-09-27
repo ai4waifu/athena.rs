@@ -10,7 +10,7 @@ pub(crate) use self::helpers::{
     CompareOutcome, IndexOutcome, MatrixStoreOutcome, domain_result_symbolic_term, linear_algebra_value_symbolic_term, evaluate_apply_head_terms, evaluate_apply_terms, evaluate_arithmetic_terms,
     evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_min_max_terms, evaluate_mod_quotient_terms,
     evaluate_elementwise_terms,
-    evaluate_extension_apply_terms, evaluate_index_axes, evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_indexed_terms, evaluate_map_terms,
+    evaluate_extension_apply_terms, evaluate_index_axes, evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_at_terms, evaluate_map_indexed_terms, evaluate_map_terms,
     evaluate_map_thread_terms, evaluate_matches_terms,
     evaluate_matrix_constructor_terms, evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms,
     evaluate_replace_all_terms, evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
