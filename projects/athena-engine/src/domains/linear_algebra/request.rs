@@ -158,6 +158,20 @@ pub enum LinearAlgebraRequest {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 列优先 reshape（MATLAB `reshape`；Living 16 形状变换）。
+    Reshape {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+        /// 目标行数。
+        rows: u64,
+        /// 目标列数。
+        cols: u64,
+    },
+    /// 元素个数（MATLAB `numel`；返回 `1×1` 整数矩阵）。
+    NumElements {
+        /// 输入（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -189,6 +203,8 @@ impl LinearAlgebraRequest {
             Self::IsDiagonal { matrix } => Self::IsDiagonal { matrix: *matrix },
             Self::IsTriangular { matrix, lower } => Self::IsTriangular { matrix: *matrix, lower: *lower },
             Self::IsSymmetric { matrix } => Self::IsSymmetric { matrix: *matrix },
+            Self::Reshape { matrix, rows, cols } => Self::Reshape { matrix: *matrix, rows: *rows, cols: *cols },
+            Self::NumElements { matrix } => Self::NumElements { matrix: *matrix },
         }
     }
 }

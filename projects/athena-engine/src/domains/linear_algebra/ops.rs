@@ -6,10 +6,10 @@ use athena_types::{Diagnostic, DiagnosticCode};
 use super::{
     index::IndexSpec,
     parent::ElementParentKind,
-    shape::MatrixShape,
+    shape::{MatrixShape, StorageOrder},
     value::{MatrixEntry, MatrixValue},
 };
-use crate::runtime::values::numeric_clone::{clone_rational, resize_integers, resize_rationals};
+use crate::runtime::values::numeric_clone::{clone_integer, clone_rational, resize_integers, resize_rationals};
 
 /// 标量索引（返回 1×1 矩阵以保持矩阵对象模型）。
 pub fn index_scalar(matrix: &MatrixValue, row: u64, col: u64) -> Result<MatrixValue, Diagnostic> {
@@ -860,6 +860,122 @@ pub fn flatten_row_major(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
             MatrixValue::from_f64_row_major(1, n_u64, data)
         }
     }
+}
+
+fn column_major_linear_entries(matrix: &MatrixValue) -> Result<Vec<MatrixEntry>, Diagnostic> {
+    let (rows, cols) = (matrix.shape().rows, matrix.shape().cols);
+    let n = matrix.shape().element_count()?;
+    let mut linear = Vec::with_capacity(n);
+    for c in 0..cols {
+        for r in 0..rows {
+            linear.push(matrix.get(r, c)?);
+        }
+    }
+    Ok(linear)
+}
+
+fn matrix_from_column_major_linear(
+    parent: super::parent::MatrixParent,
+    new_rows: u64,
+    new_cols: u64,
+    linear: &[MatrixEntry],
+) -> Result<MatrixValue, Diagnostic> {
+    let new_shape = MatrixShape::new(new_rows, new_cols);
+    let expected = new_shape.element_count()?;
+    if linear.len() != expected {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("op", "reshape_column_major").detail("reason", "linear_len"));
+    }
+    if expected == 0 {
+        return MatrixValue::zeros(parent, new_shape, StorageOrder::RowMajor);
+    }
+    match parent.element {
+        ElementParentKind::ComplexExact => {
+            let mut data = Vec::with_capacity(expected);
+            for _ in 0..expected {
+                data.push((Rational::zero(), Rational::zero()));
+            }
+            for i in 0..expected {
+                let r = i % new_rows as usize;
+                let c = i / new_rows as usize;
+                let out_idx = r * new_cols as usize + c;
+                data[out_idx] = match &linear[i] {
+                    MatrixEntry::ComplexExact { re, im } => (clone_rational(re), clone_rational(im)),
+                    MatrixEntry::Rational(re) => (clone_rational(re), Rational::zero()),
+                    MatrixEntry::Integer(z) => (Rational::from_integer(clone_integer(z)), Rational::zero()),
+                    _ => {
+                        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "reshape_complex_entry"));
+                    }
+                };
+            }
+            MatrixValue::from_complex_exact_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(expected);
+            for _ in 0..expected {
+                data.push(Integer::zero());
+            }
+            for i in 0..expected {
+                let r = i % new_rows as usize;
+                let c = i / new_rows as usize;
+                let out_idx = r * new_cols as usize + c;
+                match &linear[i] {
+                    MatrixEntry::Integer(x) => data[out_idx] = clone_integer(x),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_integers_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(expected);
+            for _ in 0..expected {
+                data.push(Rational::zero());
+            }
+            for i in 0..expected {
+                let r = i % new_rows as usize;
+                let c = i / new_rows as usize;
+                let out_idx = r * new_cols as usize + c;
+                match &linear[i] {
+                    MatrixEntry::Rational(x) => data[out_idx] = clone_rational(x),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_rationals_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = vec![0.0; expected];
+            for i in 0..expected {
+                let r = i % new_rows as usize;
+                let c = i / new_rows as usize;
+                let out_idx = r * new_cols as usize + c;
+                match linear[i] {
+                    MatrixEntry::MachineF64(x) => data[out_idx] = x,
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_f64_row_major(new_rows, new_cols, data)
+        }
+    }
+}
+
+/// MATLAB 列优先 `reshape`（Living 16 形状变换；元素序按列主序读取再写入自有行主序缓冲）。
+pub fn reshape_column_major(matrix: &MatrixValue, new_rows: u64, new_cols: u64) -> Result<MatrixValue, Diagnostic> {
+    let new_shape = MatrixShape::new(new_rows, new_cols);
+    let expected = new_shape.element_count()?;
+    let source_count = matrix.shape().element_count()?;
+    if expected != source_count {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
+            .detail("op", "reshape_column_major")
+            .detail("source", format!("{}x{}", matrix.shape().rows, matrix.shape().cols))
+            .detail("target", format!("{new_rows}x{new_cols}")));
+    }
+    let linear = column_major_linear_entries(matrix)?;
+    matrix_from_column_major_linear(matrix.parent(), new_rows, new_cols, &linear)
+}
+
+/// 元素个数标量（`1×1` 整数矩阵；MATLAB `numel` 投影面）。
+pub fn num_elements_scalar(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let count = matrix.shape().element_count()? as u64;
+    MatrixValue::from_integers_row_major(1, 1, vec![Integer::from(count as i64)])
 }
 
 /// `1×n` 按列反转；多行按行反转（Mathematica `Reverse` 对 List / 嵌套 List）。

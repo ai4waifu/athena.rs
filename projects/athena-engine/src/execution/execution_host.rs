@@ -321,6 +321,11 @@ impl<'a> ExecutionHost<'a> {
     }
 
     fn apply_min_max(&mut self, op: SemanticOperator, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() == 1 {
+            if let Some(outcome) = self.host_matrix_min_max(op, args[0])? {
+                return Ok(outcome);
+            }
+        }
         let mut terms = Vec::with_capacity(args.len());
         for slot in args {
             let term = self.slot_as_term(*slot)?;
@@ -953,6 +958,55 @@ impl<'a> ExecutionHost<'a> {
             Err(_) => return Ok(None),
         };
         let matrix_ref = self.session.matrix_objects.intern(sorted);
+        let value_id = self.session.insert_matrix_value(matrix_ref);
+        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+    }
+
+    fn host_matrix_min_max(&mut self, op: SemanticOperator, slot: SlotValue) -> Result<Option<HostOutcome>> {
+        use crate::domains::linear_algebra::{MatrixEntry, MatrixValue};
+        use athena_numeric::Integer;
+
+        let pick_max = match op {
+            SemanticOperator::Max => true,
+            SemanticOperator::Min => false,
+            _ => return Ok(None),
+        };
+        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
+        else {
+            return Ok(None);
+        };
+        let Some(matrix) = self.session.matrix_objects.resolve_owning(matrix_ref)
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows != 1 || shape.cols == 0 {
+            return Ok(None);
+        }
+        let mut values: Vec<i64> = Vec::with_capacity(shape.cols as usize);
+        for j in 0..shape.cols {
+            match matrix.get(0, j)? {
+                MatrixEntry::Integer(z) => {
+                    let Some(i) = z.to_i64()
+                    else {
+                        return Ok(None);
+                    };
+                    values.push(i);
+                }
+                _ => return Ok(None),
+            }
+        }
+        let selected = if pick_max {
+            *values.iter().max().expect("non-empty")
+        }
+        else {
+            *values.iter().min().expect("non-empty")
+        };
+        let out = match MatrixValue::from_integers_row_major(1, 1, vec![Integer::from(selected)]) {
+            Ok(m) => m,
+            Err(_) => return Ok(None),
+        };
+        let matrix_ref = self.session.matrix_objects.intern(out);
         let value_id = self.session.insert_matrix_value(matrix_ref);
         Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
     }

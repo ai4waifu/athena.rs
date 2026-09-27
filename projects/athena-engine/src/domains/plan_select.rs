@@ -89,7 +89,9 @@ fn select_linear_algebra(session: &Session, request: &LinearAlgebraRequest) -> R
         | LinearAlgebraRequest::Triu { matrix }
         | LinearAlgebraRequest::IsDiagonal { matrix }
         | LinearAlgebraRequest::IsTriangular { matrix, .. }
-        | LinearAlgebraRequest::IsSymmetric { matrix } => check_op(matrix)?,
+        | LinearAlgebraRequest::IsSymmetric { matrix }
+        | LinearAlgebraRequest::Reshape { matrix, .. }
+        | LinearAlgebraRequest::NumElements { matrix } => check_op(matrix)?,
         LinearAlgebraRequest::Index { matrix, .. } => check(matrix)?,
         LinearAlgebraRequest::MatMul { lhs, rhs }
         | LinearAlgebraRequest::Hadamard { lhs, rhs }
