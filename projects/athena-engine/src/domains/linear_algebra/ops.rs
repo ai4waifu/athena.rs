@@ -959,17 +959,115 @@ fn matrix_from_column_major_linear(
 
 /// MATLAB 列优先 `reshape`（Living 16 形状变换；元素序按列主序读取再写入自有行主序缓冲）。
 pub fn reshape_column_major(matrix: &MatrixValue, new_rows: u64, new_cols: u64) -> Result<MatrixValue, Diagnostic> {
+    reshape_with_order(matrix, new_rows, new_cols, StorageOrder::ColumnMajor)
+}
+
+/// Mathematica `ArrayReshape` 行优先 reshape（Living 16；与 MATLAB 列优先明确分离）。
+pub fn reshape_row_major(matrix: &MatrixValue, new_rows: u64, new_cols: u64) -> Result<MatrixValue, Diagnostic> {
+    reshape_with_order(matrix, new_rows, new_cols, StorageOrder::RowMajor)
+}
+
+fn reshape_with_order(
+    matrix: &MatrixValue,
+    new_rows: u64,
+    new_cols: u64,
+    order: StorageOrder,
+) -> Result<MatrixValue, Diagnostic> {
     let new_shape = MatrixShape::new(new_rows, new_cols);
     let expected = new_shape.element_count()?;
     let source_count = matrix.shape().element_count()?;
     if expected != source_count {
+        let op = match order {
+            StorageOrder::ColumnMajor => "reshape_column_major",
+            StorageOrder::RowMajor => "reshape_row_major",
+        };
         return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch)
-            .detail("op", "reshape_column_major")
+            .detail("op", op)
             .detail("source", format!("{}x{}", matrix.shape().rows, matrix.shape().cols))
             .detail("target", format!("{new_rows}x{new_cols}")));
     }
-    let linear = column_major_linear_entries(matrix)?;
-    matrix_from_column_major_linear(matrix.parent(), new_rows, new_cols, &linear)
+    let linear = match order {
+        StorageOrder::ColumnMajor => column_major_linear_entries(matrix)?,
+        StorageOrder::RowMajor => row_major_linear_entries(matrix)?,
+    };
+    match order {
+        StorageOrder::ColumnMajor => matrix_from_column_major_linear(matrix.parent(), new_rows, new_cols, &linear),
+        StorageOrder::RowMajor => matrix_from_row_major_linear(matrix.parent(), new_rows, new_cols, &linear),
+    }
+}
+
+fn row_major_linear_entries(matrix: &MatrixValue) -> Result<Vec<MatrixEntry>, Diagnostic> {
+    let (rows, cols) = (matrix.shape().rows, matrix.shape().cols);
+    let n = matrix.shape().element_count()?;
+    let mut linear = Vec::with_capacity(n);
+    for r in 0..rows {
+        for c in 0..cols {
+            linear.push(matrix.get(r, c)?);
+        }
+    }
+    Ok(linear)
+}
+
+fn matrix_from_row_major_linear(
+    parent: super::parent::MatrixParent,
+    new_rows: u64,
+    new_cols: u64,
+    linear: &[MatrixEntry],
+) -> Result<MatrixValue, Diagnostic> {
+    let new_shape = MatrixShape::new(new_rows, new_cols);
+    let expected = new_shape.element_count()?;
+    if linear.len() != expected {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("op", "reshape_row_major").detail("reason", "linear_len"));
+    }
+    if expected == 0 {
+        return MatrixValue::zeros(parent, new_shape, StorageOrder::RowMajor);
+    }
+    match parent.element {
+        ElementParentKind::ComplexExact => {
+            let mut data = Vec::with_capacity(expected);
+            for entry in linear {
+                data.push(match entry {
+                    MatrixEntry::ComplexExact { re, im } => (clone_rational(re), clone_rational(im)),
+                    MatrixEntry::Rational(re) => (clone_rational(re), Rational::zero()),
+                    MatrixEntry::Integer(z) => (Rational::from_integer(clone_integer(z)), Rational::zero()),
+                    _ => {
+                        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "reshape_complex_entry"));
+                    }
+                });
+            }
+            MatrixValue::from_complex_exact_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::Integers => {
+            let mut data = Vec::with_capacity(expected);
+            for entry in linear {
+                match entry {
+                    MatrixEntry::Integer(x) => data.push(clone_integer(x)),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_integers_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::Rationals => {
+            let mut data = Vec::with_capacity(expected);
+            for entry in linear {
+                match entry {
+                    MatrixEntry::Rational(x) => data.push(clone_rational(x)),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_rationals_row_major(new_rows, new_cols, data)
+        }
+        ElementParentKind::MachineReal => {
+            let mut data = Vec::with_capacity(expected);
+            for entry in linear {
+                match entry {
+                    MatrixEntry::MachineF64(x) => data.push(*x),
+                    _ => unreachable!(),
+                }
+            }
+            MatrixValue::from_f64_row_major(new_rows, new_cols, data)
+        }
+    }
 }
 
 /// 元素个数标量（`1×1` 整数矩阵；MATLAB `numel` 投影面）。

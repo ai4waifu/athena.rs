@@ -5,7 +5,7 @@ use athena_engine::{
         DomainRequest, DomainResult, execute_domain,
         linear_algebra::{
             AlgorithmGuarantee, IndexSpec, LinearAlgebraRequest, LinearAlgebraResult, LinearAlgebraValue, MatrixEntry, MatrixEqualityKind,
-            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major, num_elements_scalar, reshape_column_major, reverse_matrix, join_matrices, slice_matrix, riffle_row_vectors, pad_left_row_vector, elementwise_power,
+            MatrixParent, MatrixShape, MatrixValue, SolveDisposition, StorageOrder, conjugate_transpose, det_bareiss, elementwise_divide, execute_linear_algebra, flatten_row_major, num_elements_scalar, reshape_column_major, reshape_row_major, reverse_matrix, join_matrices, slice_matrix, riffle_row_vectors, pad_left_row_vector, elementwise_power,
             hadamard, is_diagonal, is_lower_triangular, is_symmetric, kronecker, matmul, matrices_equal, rank_exact, right_solve_exact,
             scalar_index_from_one_based, solve_exact, solve_machine, transpose, tril, triu,
         },
@@ -1273,6 +1273,17 @@ fn l0_reshape_column_major_matches_matlab() {
     assert_eq!(r.get(0, 0).unwrap(), MatrixEntry::Integer(i(1)));
     assert_eq!(r.get(1, 0).unwrap(), MatrixEntry::Integer(i(2)));
     assert_eq!(r.get(0, 1).unwrap(), MatrixEntry::Integer(i(3)));
+    assert_eq!(r.get(1, 1).unwrap(), MatrixEntry::Integer(i(4)));
+}
+
+#[test]
+fn l0_reshape_row_major_matches_mathematica() {
+    let m = MatrixValue::from_integers_row_major(1, 4, vec![i(1), i(2), i(3), i(4)]).expect("m");
+    let r = reshape_row_major(&m, 2, 2).expect("reshape");
+    assert_eq!(r.shape(), MatrixShape::new(2, 2));
+    assert_eq!(r.get(0, 0).unwrap(), MatrixEntry::Integer(i(1)));
+    assert_eq!(r.get(0, 1).unwrap(), MatrixEntry::Integer(i(2)));
+    assert_eq!(r.get(1, 0).unwrap(), MatrixEntry::Integer(i(3)));
     assert_eq!(r.get(1, 1).unwrap(), MatrixEntry::Integer(i(4)));
 }
 
