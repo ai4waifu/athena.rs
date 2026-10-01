@@ -208,6 +208,37 @@ fn compile_and_execute_round_half_to_even() {
 }
 
 #[test]
+fn compile_and_execute_elementary_zero_specials() {
+    use athena_ir::UnaryFunction;
+    let mut session = Session::new();
+    let zero = session.builder().int(0, Default::default());
+    let cases: &[(UnaryFunction, TermId, i64)] = &[
+        (UnaryFunction::ArcSin, zero, 0),
+        (UnaryFunction::Sinh, zero, 0),
+        (UnaryFunction::Cosh, zero, 1),
+    ];
+    for (uf, arg, expected) in cases {
+        let head = ApplicationHead::Semantic(SemanticOperator::Unary(*uf));
+        let term = session.builder().application(head, vec![*arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(*expected) => {}
+            other => panic!("expected {uf:?}[0] == {expected}, got {other:?}"),
+        }
+    }
+    let e = session.builder().constant(MathematicalConstant::EulerNumber, Default::default());
+    let log_e = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::Log));
+    let term = session.builder().application(log_e, vec![e], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("log e");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(1) => {}
+        other => panic!("expected Log[E] == 1, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
