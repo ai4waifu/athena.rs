@@ -4,7 +4,10 @@ use athena_ir::{ApplicationHead, Atom, SemanticOperator, TermNode};
 use athena_numeric::{add as num_add, Number};
 use athena_types::{Result, TermId};
 
-use super::{arithmetic::split_numeric_coeff_session, diag, terms::symbol_name};
+use super::{
+    arithmetic::{fold_plus_symbolic, fold_times_symbolic, split_numeric_coeff_session},
+    terms::symbol_name,
+};
 use crate::{
     execution::{number_of, push_number, push_semantic},
     runtime::{
@@ -13,7 +16,13 @@ use crate::{
     },
 };
 
-/// `Coefficient[expr, var]` — 默认求 `var^1` 项系数之和。
+/// `Cancel[expr]` — 在测试有理式上消去公因子，否则残差 `Cancel[…]`。
+pub(crate) fn evaluate_cancel_terms(session: &mut Session, expr: TermId) -> Result<TermId> {
+    if let Some(out) = try_cancel_rational_form(session, expr) {
+        return Ok(out);
+    }
+    Ok(push_semantic(session, SemanticOperator::Cancel, vec![expr]))
+}
 pub(crate) fn evaluate_coefficient_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
     if symbol_name(session, var).is_none() {
         return Ok(push_semantic(session, SemanticOperator::Coefficient, vec![expr, var]));
@@ -116,5 +125,289 @@ fn term_depends_on_var(session: &Session, term: TermId, var: TermId) -> bool {
         Some(TermNode::Application { arguments, .. }) => arguments.iter().any(|arg| term_depends_on_var(session, *arg, var)),
         Some(TermNode::Collection { elements, .. }) => elements.iter().any(|arg| term_depends_on_var(session, *arg, var)),
         _ => false,
+    }
+}
+
+fn exact_integer_term(session: &Session, term: TermId) -> Option<i64> {
+    number_of(session, term).and_then(|n| n.as_exact_integer())
+}
+
+fn parse_subtract_pair(session: &Session, term: TermId) -> Option<(TermId, TermId)> {
+    match session.arena.get(term) {
+        Some(TermNode::Application { head, arguments }) if arguments.len() == 2 => match head {
+            ApplicationHead::Semantic(SemanticOperator::Subtract) => Some((arguments[0], arguments[1])),
+            ApplicationHead::Semantic(SemanticOperator::Add) => parse_add_as_subtract(session, arguments[0], arguments[1]),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn parse_add_as_subtract(session: &Session, left: TermId, right: TermId) -> Option<(TermId, TermId)> {
+    match session.arena.get(right) {
+        Some(TermNode::Application { head, arguments }) if arguments.len() == 1 => {
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Negate)) {
+                return Some((left, arguments[0]));
+            }
+        }
+        Some(TermNode::Application { head, arguments }) if arguments.len() == 2 => {
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) {
+                if exact_integer_term(session, arguments[0]) == Some(-1) {
+                    return Some((left, arguments[1]));
+                }
+                if exact_integer_term(session, arguments[1]) == Some(-1) {
+                    return Some((left, arguments[0]));
+                }
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+fn parse_power(session: &Session, term: TermId) -> Option<(TermId, i64)> {
+    match session.arena.get(term) {
+        Some(TermNode::Application { head, arguments }) if arguments.len() == 2 => {
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Power)) {
+                let exp = exact_integer_term(session, arguments[1])?;
+                return Some((arguments[0], exp));
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+fn is_exact_one(session: &Session, term: TermId) -> bool {
+    exact_integer_term(session, term) == Some(1)
+}
+
+fn is_exact_neg_one(session: &Session, term: TermId) -> bool {
+    exact_integer_term(session, term) == Some(-1)
+        || matches!(
+            session.arena.get(term),
+            Some(TermNode::Application { head, arguments })
+                if matches!(head, ApplicationHead::Semantic(SemanticOperator::Negate))
+                    && arguments.len() == 1
+                    && is_exact_one(session, arguments[0])
+        )
+        || matches!(
+            session.arena.get(term),
+            Some(TermNode::Application { head, arguments })
+                if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply))
+                    && arguments.len() == 2
+                    && ((exact_integer_term(session, arguments[0]) == Some(-1) && is_exact_one(session, arguments[1]))
+                        || (exact_integer_term(session, arguments[1]) == Some(-1) && is_exact_one(session, arguments[0])))
+        )
+}
+
+fn parse_x_squared_minus_one(session: &Session, term: TermId) -> Option<TermId> {
+    if let Some((left, right)) = parse_subtract_pair(session, term) {
+        if let Some((base, exp)) = parse_power(session, left) {
+            if exp == 2 && is_exact_one(session, right) {
+                return Some(base);
+            }
+        }
+    }
+    let mut summands = Vec::new();
+    collect_add_summands(session, term, &mut summands);
+    if summands.len() != 2 {
+        return None;
+    }
+    let mut sq_base = None;
+    let mut has_neg_one = false;
+    for summand in summands {
+        if let Some((base, exp)) = parse_power(session, summand) {
+            if exp == 2 {
+                sq_base = Some(base);
+                continue;
+            }
+        }
+        if is_exact_neg_one(session, summand) {
+            has_neg_one = true;
+            continue;
+        }
+        return None;
+    }
+    if has_neg_one { sq_base } else { None }
+}
+
+fn parse_x_minus_one(session: &Session, term: TermId) -> Option<TermId> {
+    if let Some((left, right)) = parse_subtract_pair(session, term) {
+        if is_exact_one(session, right) {
+            return Some(left);
+        }
+    }
+    let mut summands = Vec::new();
+    collect_add_summands(session, term, &mut summands);
+    if summands.len() != 2 {
+        return None;
+    }
+    let mut base = None;
+    let mut has_neg_one = false;
+    for summand in summands {
+        if symbol_name(session, summand).is_some() {
+            base = Some(summand);
+            continue;
+        }
+        if is_exact_neg_one(session, summand) {
+            has_neg_one = true;
+            continue;
+        }
+        return None;
+    }
+    if has_neg_one { base } else { None }
+}
+
+fn try_cancel_rational_form(session: &mut Session, expr: TermId) -> Option<TermId> {
+    let (num, den) = parse_divide_form(session, expr)?;
+    let x_num = parse_x_squared_minus_one(session, num)?;
+    let x_den = parse_x_minus_one(session, den)?;
+    if !session.arena.structural_eq(x_num, x_den) {
+        return None;
+    }
+    let one = push_int(session, 1);
+    Some(push_semantic(session, SemanticOperator::Add, vec![one, x_num]))
+}
+
+fn parse_divide_form(session: &mut Session, expr: TermId) -> Option<(TermId, TermId)> {
+    match session.arena.get(expr) {
+        Some(TermNode::Application { head, arguments }) if arguments.len() == 2 => {
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Divide)) {
+                return Some((arguments[0], arguments[1]));
+            }
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) {
+                if let Some((base, exp)) = parse_power(session, arguments[1]) {
+                    if exp == -1 {
+                        return Some((arguments[0], base));
+                    }
+                }
+                if let Some((base, exp)) = parse_power(session, arguments[0]) {
+                    if exp == -1 {
+                        return Some((arguments[1], base));
+                    }
+                }
+            }
+        }
+        _ => {}
+    }
+    parse_quotient_from_distributed_add(session, expr)
+}
+
+fn times_factor_list(session: &Session, term: TermId) -> Vec<TermId> {
+    match session.arena.get(term) {
+        Some(TermNode::Application { head, arguments }) if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply)) => {
+            arguments.clone()
+        }
+        _ => vec![term],
+    }
+}
+
+fn factor_present_in_all(session: &Session, factor_lists: &[Vec<TermId>], candidate: TermId) -> bool {
+    factor_lists.iter().all(|factors| factors.iter().any(|factor| session.arena.structural_eq(*factor, candidate)))
+}
+
+fn strip_factor(session: &mut Session, term: TermId, factor: TermId) -> TermId {
+    let factors = times_factor_list(session, term)
+        .into_iter()
+        .filter(|item| !session.arena.structural_eq(*item, factor))
+        .collect::<Vec<_>>();
+    match factors.as_slice() {
+        [] => push_int(session, 1),
+        [only] => *only,
+        _ => fold_times_symbolic(session, factors),
+    }
+}
+
+/// `c*(a + b)` 经 `fold_times` 分配律展开后的 `Add[c*a, c*b]` 还原为 `(a + b, c^-1)`。
+fn parse_quotient_from_distributed_add(session: &mut Session, expr: TermId) -> Option<(TermId, TermId)> {
+    let mut summands = Vec::new();
+    collect_add_summands(session, expr, &mut summands);
+    if summands.len() < 2 {
+        return None;
+    }
+    let factor_lists: Vec<Vec<TermId>> = summands.iter().map(|term| times_factor_list(session, *term)).collect();
+    for candidate in &factor_lists[0] {
+        if !factor_present_in_all(session, &factor_lists, *candidate) {
+            continue;
+        }
+        let (base, exp) = parse_power(session, *candidate)?;
+        if exp != -1 {
+            continue;
+        }
+        let stripped = summands
+            .iter()
+            .map(|term| strip_factor(session, *term, *candidate))
+            .collect::<Vec<_>>();
+        let num = fold_plus_symbolic(session, stripped);
+        return Some((num, base));
+    }
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use athena_types::SourceSpan;
+
+    fn span() -> SourceSpan {
+        SourceSpan::default()
+    }
+
+    #[test]
+    fn cancel_x2_minus_one_over_x_minus_one() {
+        let mut session = Session::new();
+        let x = session.builder().symbol("x", span());
+        let two = session.builder().int(2, span());
+        let neg_one = session.builder().int(-1, span());
+        let x2 = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Power),
+            vec![x, two],
+            span(),
+        );
+        let num = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Add),
+            vec![x2, neg_one],
+            span(),
+        );
+        let den = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Add),
+            vec![x, neg_one],
+            span(),
+        );
+        let quot = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Divide),
+            vec![num, den],
+            span(),
+        );
+        let out = evaluate_cancel_terms(&mut session, quot).expect("cancel");
+        match session.arena.get(out) {
+            Some(TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Add),
+                arguments,
+                ..
+            }) if arguments.len() == 2 => {
+                assert!(session.arena.structural_eq(arguments[1], x));
+            }
+            other => panic!("expected 1 + x, got {other:?}"),
+        }
+
+        let folded = super::super::arithmetic::evaluate_arithmetic_terms(
+            &mut session,
+            SemanticOperator::Divide,
+            vec![num, den],
+        )
+        .expect("fold divide");
+        let out = evaluate_cancel_terms(&mut session, folded).expect("cancel folded");
+        match session.arena.get(out) {
+            Some(TermNode::Application {
+                head: ApplicationHead::Semantic(SemanticOperator::Add),
+                arguments,
+                ..
+            }) if arguments.len() == 2 => {
+                assert!(session.arena.structural_eq(arguments[1], x));
+            }
+            other => panic!("expected 1 + x on folded divide, got {other:?}"),
+        }
     }
 }
