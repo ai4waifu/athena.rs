@@ -1949,6 +1949,35 @@ impl<'a> ExecutionHost<'a> {
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         // Living 16: Prefer typed MatrixRef shape. Numeric Collection literals intern once.
         if args.len() == 1 {
+            if let Some(matrix_ref) = self.matrix_ref_from_slot(args[0]) {
+                if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
+                    use crate::runtime::values::arena::push_list;
+                    let shape = matrix.shape();
+                    let r = self.session.builder().int(shape.rows as i64, Default::default());
+                    let c = self.session.builder().int(shape.cols as i64, Default::default());
+                    return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![r, c]))));
+                }
+            }
+            if self.session.matrix_list_surface == crate::runtime::session::MatrixListSurface::NestedRows {
+                let term = self.slot_as_term(args[0])?;
+                let flat_vector_len = match self.session.arena.get(term) {
+                    Some(athena_ir::TermNode::Collection { elements, .. }) if !elements.is_empty() => {
+                        let first = elements[0];
+                        if matches!(self.session.arena.get(first), Some(athena_ir::TermNode::Collection { .. })) {
+                            None
+                        }
+                        else {
+                            Some(elements.len())
+                        }
+                    }
+                    _ => None,
+                };
+                if let Some(len) = flat_vector_len {
+                    use crate::runtime::values::arena::push_list;
+                    let len_term = self.session.builder().int(len as i64, Default::default());
+                    return Ok(HostOutcome::Value(SlotValue::Term(push_list(self.session, vec![len_term]))));
+                }
+            }
             if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
                 if let Some(matrix) = self.session.matrix_objects.get(matrix_ref) {
                     use crate::runtime::values::arena::push_list;
