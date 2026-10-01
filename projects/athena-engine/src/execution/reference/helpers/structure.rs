@@ -166,6 +166,31 @@ pub(crate) fn evaluate_delete_duplicates_terms(session: &mut Session, list: Term
     Ok(push_list(session, out))
 }
 
+/// `Nearest[list, target]` — 精确整数列表上与 `target` 距离最小的元素（保留并列）。
+pub(crate) fn evaluate_nearest_terms(session: &mut Session, list: TermId, target: TermId) -> Result<TermId> {
+    let Some(target_n) = number_of(session, target).and_then(|v| v.as_exact_integer())
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Nearest, vec![list, target]));
+    };
+    let Some(athena_ir::TermNode::Collection { elements: items, .. }) = session.arena.get(list)
+    else {
+        return Ok(push_semantic(session, SemanticOperator::Nearest, vec![list, target]));
+    };
+    let items = items.clone();
+    let mut pairs: Vec<(u64, TermId)> = Vec::with_capacity(items.len());
+    for item in items {
+        let Some(n) = number_of(session, item).and_then(|v| v.as_exact_integer())
+        else {
+            return Ok(push_semantic(session, SemanticOperator::Nearest, vec![list, target]));
+        };
+        let dist = if n >= target_n { (n - target_n) as u64 } else { (target_n - n) as u64 };
+        pairs.push((dist, item));
+    }
+    let min_dist = pairs.iter().map(|(d, _)| *d).min().unwrap_or(0);
+    let out = pairs.into_iter().filter(|(d, _)| *d == min_dist).map(|(_, id)| id).collect();
+    Ok(push_list(session, out))
+}
+
 /// `Count[list, elem]` — 结构相等出现次数。
 pub(crate) fn evaluate_count_terms(session: &mut Session, list: TermId, elem: TermId) -> Result<TermId> {
     match session.arena.get(list) {
@@ -881,5 +906,29 @@ fn elementwise_zip(session: &mut Session, scalar_op: SemanticOperator, left: Ter
             Ok(Some(push_list(session, out)))
         }
         (false, false) => Ok(Some(evaluate_arithmetic_terms(session, scalar_op, vec![left, right])?)),
+    }
+}
+
+#[cfg(test)]
+mod nearest_tests {
+    use super::evaluate_nearest_terms;
+    use crate::runtime::{Session, values::arena::{push_int, push_list}};
+
+    #[test]
+    fn nearest_exact_integer_ties() {
+        let mut s = Session::new();
+        let i1 = push_int(&mut s, 1);
+        let i2 = push_int(&mut s, 2);
+        let i4 = push_int(&mut s, 4);
+        let list = push_list(&mut s, vec![i1, i2, i4]);
+        let target = push_int(&mut s, 3);
+        let out = evaluate_nearest_terms(&mut s, list, target).expect("nearest");
+        let items = match s.arena.get(out) {
+            Some(athena_ir::TermNode::Collection { elements, .. }) => elements.clone(),
+            _ => panic!("expected list"),
+        };
+        assert_eq!(items.len(), 2);
+        assert!(s.arena.structural_eq(items[0], i2));
+        assert!(s.arena.structural_eq(items[1], i4));
     }
 }
