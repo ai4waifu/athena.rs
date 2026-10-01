@@ -36,10 +36,10 @@ use crate::{
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session, term_to_exact_matrix_session,
             term_scalar_complex_session,
-            domain_request_residual_term, linear_algebra_missing_binding,
+            domain_request_residual_term, linear_algebra_missing_binding, matrix_to_mathematica_structure_term,
         },
     },
-    runtime::{results::computation_from_domain, session::Session, values::numeric_clone::clone_number},
+    runtime::{results::computation_from_domain, session::{MatrixListSurface, Session}, values::numeric_clone::clone_number},
 };
 
 /// 执行宿主（engine 在 VM 之上 · 不拥有解释循环）。
@@ -170,9 +170,36 @@ impl<'a> ExecutionHost<'a> {
         if !matches!(self.session.arena.get(term), Some(TermNode::Collection { .. })) {
             return Ok(None);
         }
+        if self.session.matrix_list_surface == MatrixListSurface::NestedRows {
+            if let Some(TermNode::Collection { elements, .. }) = self.session.arena.get(term) {
+                if !elements.is_empty()
+                    && !matches!(self.session.arena.get(elements[0]), Some(TermNode::Collection { .. }))
+                {
+                    return Ok(None);
+                }
+            }
+        }
         Ok(term_to_exact_matrix_session(self.session, term)
             .or_else(|| term_to_rational_matrix_session(self.session, term))
             .map(|matrix| self.session.matrix_objects.intern(matrix)))
+    }
+
+    /// Intern flat NestedRows vectors for typed vector kernels (`Accumulate` / `Differences`).
+    fn matrix_ref_intern_flat_vector_term(&mut self, slot: SlotValue) -> Result<Option<crate::domains::linear_algebra::MatrixRef>> {
+        if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)? {
+            return Ok(Some(matrix_ref));
+        }
+        let term = self.slot_as_term(slot)?;
+        let Some(matrix) = term_to_exact_matrix_session(self.session, term)
+            .or_else(|| term_to_rational_matrix_session(self.session, term))
+        else {
+            return Ok(None);
+        };
+        let shape = matrix.shape();
+        if shape.rows > 1 && shape.cols > 1 {
+            return Ok(None);
+        }
+        Ok(Some(self.session.matrix_objects.intern(matrix)))
     }
 
     fn host_hadamard(
@@ -386,6 +413,18 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(out)))
     }
 
+    fn host_outcome_from_structure_matrix(&mut self, matrix: crate::domains::linear_algebra::MatrixValue) -> Result<HostOutcome> {
+        if self.session.matrix_list_surface == MatrixListSurface::NestedRows {
+            let term = matrix_to_mathematica_structure_term(self.session, &matrix)?;
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+        else {
+            let matrix_ref = self.session.matrix_objects.intern(matrix);
+            let value_id = self.session.insert_matrix_value(matrix_ref);
+            Ok(HostOutcome::Value(SlotValue::Value(value_id)))
+        }
+    }
+
     fn host_matrix_unary_structure(&mut self, op: SemanticOperator, slot: SlotValue) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::{
             AxisRange, IndexSpec, MatrixEntry, flatten_row_major, reverse_matrix, slice_matrix,
@@ -432,9 +471,7 @@ impl<'a> ExecutionHost<'a> {
                         cols: AxisRange::All,
                     },
                 )?;
-                let matrix_ref = self.session.matrix_objects.intern(row);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+                Ok(Some(self.host_outcome_from_structure_matrix(row)?))
             }
             SemanticOperator::Rest => {
                 if shape.rows == 0 || shape.cols == 0 {
@@ -483,15 +520,11 @@ impl<'a> ExecutionHost<'a> {
                         },
                     )
                 }?;
-                let matrix_ref = self.session.matrix_objects.intern(rest);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+                Ok(Some(self.host_outcome_from_structure_matrix(rest)?))
             }
             SemanticOperator::Flatten => {
                 let flat = flatten_row_major(&matrix)?;
-                let matrix_ref = self.session.matrix_objects.intern(flat);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+                Ok(Some(self.host_outcome_from_structure_matrix(flat)?))
             }
             SemanticOperator::Most => {
                 if shape.rows == 0 || shape.cols == 0 {
@@ -534,15 +567,11 @@ impl<'a> ExecutionHost<'a> {
                         },
                     )
                 }?;
-                let matrix_ref = self.session.matrix_objects.intern(most);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+                Ok(Some(self.host_outcome_from_structure_matrix(most)?))
             }
             SemanticOperator::Reverse => {
                 let reversed = reverse_matrix(&matrix)?;
-                let matrix_ref = self.session.matrix_objects.intern(reversed);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+                Ok(Some(self.host_outcome_from_structure_matrix(reversed)?))
             }
             _ => Ok(None),
         }
@@ -609,11 +638,7 @@ impl<'a> ExecutionHost<'a> {
         }
         let parts: Vec<&_> = owned.iter().collect();
         match join_matrices(&parts) {
-            Ok(joined) => {
-                let matrix_ref = self.session.matrix_objects.intern(joined);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
-            }
+            Ok(joined) => Ok(Some(self.host_outcome_from_structure_matrix(joined)?)),
             Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
         }
     }
@@ -696,9 +721,7 @@ impl<'a> ExecutionHost<'a> {
                 },
             )?
         };
-        let matrix_ref = self.session.matrix_objects.intern(sliced);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+        Ok(Some(self.host_outcome_from_structure_matrix(sliced)?))
     }
 
     fn apply_append(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -751,11 +774,7 @@ impl<'a> ExecutionHost<'a> {
             };
             let parts: Vec<&_> = if prepend { vec![&elem, &base] } else { vec![&base, &elem] };
             return Ok(Some(match join_matrices(&parts) {
-                Ok(joined) => {
-                    let matrix_ref = self.session.matrix_objects.intern(joined);
-                    let value_id = self.session.insert_matrix_value(matrix_ref);
-                    HostOutcome::Value(SlotValue::Value(value_id))
-                }
+                Ok(joined) => self.host_outcome_from_structure_matrix(joined)?,
                 Err(diagnostic) => HostOutcome::Diagnostic(diagnostic),
             }));
         }
@@ -796,11 +815,7 @@ impl<'a> ExecutionHost<'a> {
                     _ => return Ok(None),
                 };
                 return Ok(Some(match extend_row_vector_scalar(&base, entry, prepend) {
-                    Ok(extended) => {
-                        let matrix_ref = self.session.matrix_objects.intern(extended);
-                        let value_id = self.session.insert_matrix_value(matrix_ref);
-                        HostOutcome::Value(SlotValue::Value(value_id))
-                    }
+                    Ok(extended) => self.host_outcome_from_structure_matrix(extended)?,
                     Err(diagnostic) => HostOutcome::Diagnostic(diagnostic),
                 }));
             }
@@ -860,11 +875,7 @@ impl<'a> ExecutionHost<'a> {
             }
         };
         match extend_row_vector_scalar(&base, entry, prepend) {
-            Ok(extended) => {
-                let matrix_ref = self.session.matrix_objects.intern(extended);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
-            }
+            Ok(extended) => Ok(Some(self.host_outcome_from_structure_matrix(extended)?)),
             Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
         }
     }
@@ -1264,9 +1275,7 @@ impl<'a> ExecutionHost<'a> {
                     data.push((clone_rational(&re), clone_rational(&im)));
                 }
                 if let Ok(matrix) = MatrixValue::from_complex_exact_row_major(rows, cols, data) {
-                    let matrix_ref = self.session.matrix_objects.intern(matrix);
-                    let value_id = self.session.insert_matrix_value(matrix_ref);
-                    return Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))));
+                    return Ok(Some(self.host_outcome_from_structure_matrix(matrix)?));
                 }
                 return Ok(None);
             }
@@ -1308,9 +1317,7 @@ impl<'a> ExecutionHost<'a> {
         else {
             return Ok(None);
         };
-        let matrix_ref = self.session.matrix_objects.intern(matrix);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+        Ok(Some(self.host_outcome_from_structure_matrix(matrix)?))
     }
 
     fn apply_union(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -1400,8 +1407,8 @@ impl<'a> ExecutionHost<'a> {
         if args.len() != 1 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Differences.discriminant())));
         }
-        // Living 16: vector MatrixRef adjacent differences. Numeric Collection literals intern once.
-        if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(args[0])? {
+        // Living 16: vector MatrixRef adjacent differences. Flat NestedRows vectors intern here.
+        if let Some(matrix_ref) = self.matrix_ref_intern_flat_vector_term(args[0])? {
             if let Some(outcome) = self.differences_matrix_ref(matrix_ref)? {
                 return Ok(outcome);
             }
@@ -1489,44 +1496,46 @@ impl<'a> ExecutionHost<'a> {
         &mut self,
         as_row: bool,
         values: Vec<athena_numeric::Rational>,
-    ) -> Option<HostOutcome> {
+    ) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::MatrixValue;
 
         let n = values.len() as u64;
         if n == 0 {
-            return None;
+            return Ok(None);
         }
         let matrix = if as_row {
-            MatrixValue::from_rationals_row_major(1, n, values).ok()?
+            MatrixValue::from_rationals_row_major(1, n, values)
         }
         else {
-            MatrixValue::from_rationals_row_major(n, 1, values).ok()?
+            MatrixValue::from_rationals_row_major(n, 1, values)
         };
-        let matrix_ref = self.session.matrix_objects.intern(matrix);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Some(HostOutcome::Value(SlotValue::Value(value_id)))
+        let Ok(matrix) = matrix else {
+            return Ok(None);
+        };
+        Ok(Some(self.host_outcome_from_structure_matrix(matrix)?))
     }
 
     fn matrix_from_vector_complex(
         &mut self,
         as_row: bool,
         values: Vec<(athena_numeric::Rational, athena_numeric::Rational)>,
-    ) -> Option<HostOutcome> {
+    ) -> Result<Option<HostOutcome>> {
         use crate::domains::linear_algebra::MatrixValue;
 
         let n = values.len() as u64;
         if n == 0 {
-            return None;
+            return Ok(None);
         }
         let matrix = if as_row {
-            MatrixValue::from_complex_exact_row_major(1, n, values).ok()?
+            MatrixValue::from_complex_exact_row_major(1, n, values)
         }
         else {
-            MatrixValue::from_complex_exact_row_major(n, 1, values).ok()?
+            MatrixValue::from_complex_exact_row_major(n, 1, values)
         };
-        let matrix_ref = self.session.matrix_objects.intern(matrix);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Some(HostOutcome::Value(SlotValue::Value(value_id)))
+        let Ok(matrix) = matrix else {
+            return Ok(None);
+        };
+        Ok(Some(self.host_outcome_from_structure_matrix(matrix)?))
     }
 
     fn accumulate_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
@@ -1544,7 +1553,7 @@ impl<'a> ExecutionHost<'a> {
                 acc = acc.add(&value);
                 prefix.push(clone_rational(&acc));
             }
-            return Ok(self.matrix_from_vector_rationals(as_row, prefix));
+            return self.matrix_from_vector_rationals(as_row, prefix);
         }
         let Some((as_row, values)) = self.vector_entries_complex(&matrix)
         else {
@@ -1556,7 +1565,7 @@ impl<'a> ExecutionHost<'a> {
             acc = (acc.0.add(&re), acc.1.add(&im));
             prefix.push((clone_rational(&acc.0), clone_rational(&acc.1)));
         }
-        Ok(self.matrix_from_vector_complex(as_row, prefix))
+        self.matrix_from_vector_complex(as_row, prefix)
     }
 
     fn differences_matrix_ref(&mut self, matrix_ref: crate::domains::linear_algebra::MatrixRef) -> Result<Option<HostOutcome>> {
@@ -1575,7 +1584,7 @@ impl<'a> ExecutionHost<'a> {
             for window in values.windows(2) {
                 diffs.push(window[1].sub(&window[0]));
             }
-            return Ok(self.matrix_from_vector_rationals(as_row, diffs));
+            return self.matrix_from_vector_rationals(as_row, diffs);
         }
         let Some((as_row, values)) = self.vector_entries_complex(&matrix)
         else {
@@ -1595,7 +1604,7 @@ impl<'a> ExecutionHost<'a> {
             .into_iter()
             .map(|(re, im)| (clone_rational(&re), clone_rational(&im)))
             .collect();
-        Ok(self.matrix_from_vector_complex(as_row, diffs))
+        self.matrix_from_vector_complex(as_row, diffs)
     }
 
     fn apply_free_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -1741,9 +1750,7 @@ impl<'a> ExecutionHost<'a> {
                 cols: AxisRange::All,
             },
         )?;
-        let matrix_ref = self.session.matrix_objects.intern(row);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+        Ok(Some(self.host_outcome_from_structure_matrix(row)?))
     }
 
     fn apply_pad_left(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -1783,11 +1790,7 @@ impl<'a> ExecutionHost<'a> {
             return Ok(None);
         }
         match pad_left_row_vector(&matrix, n as u64) {
-            Ok(padded) => {
-                let matrix_ref = self.session.matrix_objects.intern(padded);
-                let value_id = self.session.insert_matrix_value(matrix_ref);
-                Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
-            }
+            Ok(padded) => Ok(Some(self.host_outcome_from_structure_matrix(padded)?)),
             Err(diagnostic) => Ok(Some(HostOutcome::Diagnostic(diagnostic))),
         }
     }
@@ -1941,9 +1944,7 @@ impl<'a> ExecutionHost<'a> {
         else {
             return Ok(None);
         };
-        let matrix_ref = self.session.matrix_objects.intern(matrix);
-        let value_id = self.session.insert_matrix_value(matrix_ref);
-        Ok(Some(HostOutcome::Value(SlotValue::Value(value_id))))
+        Ok(Some(self.host_outcome_from_structure_matrix(matrix)?))
     }
 
     fn apply_size(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
@@ -2452,12 +2453,16 @@ impl<'a> ExecutionHost<'a> {
         use crate::domains::linear_algebra::{MatrixEntry, MatrixParent, MatrixShape, MatrixValue, StorageOrder};
         use athena_numeric::Rational;
 
-        // Living 16: diagonal vector from MatrixRef or numeric Collection (interned once).
-        let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)?
+        // Living 16: diagonal vector from MatrixRef, bound symbol, or numeric Collection.
+        let src = if let Some(matrix_ref) = self.matrix_ref_or_intern_numeric(slot)? {
+            self.session.matrix_objects.resolve_owning(matrix_ref)
+        }
         else {
-            return Ok(None);
+            let term = self.slot_as_term(slot)?;
+            term_to_exact_matrix_session(self.session, term)
+                .or_else(|| term_to_rational_matrix_session(self.session, term))
         };
-        let Some(src) = self.session.matrix_objects.get(matrix_ref)
+        let Some(src) = src
         else {
             return Ok(None);
         };
