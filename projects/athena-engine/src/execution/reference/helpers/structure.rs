@@ -508,6 +508,9 @@ pub(crate) fn evaluate_member_of_terms(session: &mut Session, elem: TermId, doma
             _ => false,
         }
     }
+    fn number_in_complexes(num: &Number) -> bool {
+        matches!(num, Number::Integer(_) | Number::Rational(_) | Number::Real(_) | Number::Complex(_))
+    }
     match symbol_name(session, domain).as_deref() {
         Some("Integers") => {
             if let Some(num) = number_of(session, elem) {
@@ -521,6 +524,12 @@ pub(crate) fn evaluate_member_of_terms(session: &mut Session, elem: TermId, doma
         Some("Reals") => {
             if let Some(num) = number_of(session, elem) {
                 return Ok(push_bool(session, number_in_reals(&num)));
+            }
+            return Ok(push_bool(session, false));
+        }
+        Some("Complexes") => {
+            if let Some(num) = number_of(session, elem) {
+                return Ok(push_bool(session, number_in_complexes(&num)));
             }
             return Ok(push_bool(session, false));
         }
@@ -968,6 +977,23 @@ mod member_of_tests {
         );
         let out = evaluate_member_of_terms(&mut s, i, reals).expect("member");
         assert!(matches!(s.arena.get(out), Some(TermNode::Atom(Atom::Boolean(false)))));
+    }
+
+    #[test]
+    fn member_of_complexes_accepts_numeric_atoms() {
+        let mut s = Session::new();
+        let complexes = push_symbol_name(&mut s, "Complexes");
+        let one = push_int(&mut s, 1);
+        let out = evaluate_member_of_terms(&mut s, one, complexes).expect("member");
+        assert!(matches!(s.arena.get(out), Some(TermNode::Atom(Atom::Boolean(true)))));
+        let i = s.arena.push(
+            TermNode::Atom(Atom::Number(Number::complex(
+                Complex::try_new(Real::machine(0.0), Real::machine(1.0), BranchPolicy::Principal).expect("i"),
+            ))),
+            Default::default(),
+        );
+        let out = evaluate_member_of_terms(&mut s, i, complexes).expect("member");
+        assert!(matches!(s.arena.get(out), Some(TermNode::Atom(Atom::Boolean(true)))));
     }
 }
 
