@@ -199,6 +199,8 @@ pub enum SemanticOperator {
     Abs,
     /// 向下取整（方言 `Floor`；精确整数与 machine 实数）。
     Floor,
+    /// 向上取整（方言 `Ceiling`；精确整数与 machine 实数）。
+    Ceiling,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -420,6 +422,7 @@ impl SemanticOperator {
             Self::BooleanQ => 273,
             Self::Abs => 21,
             Self::Floor => 276,
+            Self::Ceiling => 277,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -553,6 +556,7 @@ impl SemanticOperator {
             273 => Some(Self::BooleanQ),
             21 => Some(Self::Abs),
             276 => Some(Self::Floor),
+            277 => Some(Self::Ceiling),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -689,6 +693,7 @@ impl SemanticOperator {
             Self::BooleanQ => "BooleanQ",
             Self::Abs => "Abs",
             Self::Floor => "Floor",
+            Self::Ceiling => "Ceiling",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",
