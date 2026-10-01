@@ -352,6 +352,13 @@ impl Session {
         self.values.insert(RuntimeValue::Matrix(matrix))
     }
 
+    /// 将字面量 [`MatrixValue`] 物化为符号 [`TermId`]（按 [`MatrixListSurface`] 投影为 List）。
+    pub fn term_from_matrix_literal(&mut self, matrix: crate::domains::linear_algebra::MatrixValue) -> athena_types::Result<TermId> {
+        let matrix_ref = self.matrix_objects.intern(matrix);
+        let value_id = self.insert_matrix_value(matrix_ref);
+        crate::execution::reference::symbolic_term_from_value_id(self, value_id)
+    }
+
     /// 若该值载荷是矩阵 DomainObject，返回句柄。
     pub fn matrix_of_value(&self, value: ValueId) -> Option<MatrixRef> {
         self.values.get(value).and_then(RuntimeValue::as_matrix)
