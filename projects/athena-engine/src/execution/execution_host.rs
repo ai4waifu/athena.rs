@@ -22,11 +22,12 @@ use crate::{
             evaluate_apply_terms, evaluate_arithmetic_terms, evaluate_collect_matches_terms, evaluate_compare_terms, evaluate_min_max_terms,
             evaluate_mod_quotient_terms,
             evaluate_elementwise_terms, evaluate_extension_apply_terms, evaluate_index_axes,
-            evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_at_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
+            evaluate_index_axes_matrix, evaluate_join_terms, evaluate_map_at_terms, evaluate_map_all_terms, evaluate_map_indexed_terms, evaluate_map_terms, evaluate_map_thread_terms, evaluate_matches_terms,
             evaluate_take_terms, evaluate_drop_terms, evaluate_append_terms, evaluate_prepend_terms,
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
+            evaluate_even_q_terms, evaluate_select_terms, evaluate_list_convolve_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
@@ -1621,6 +1622,35 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_even_q(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::EvenQ.discriminant())));
+        }
+        let arg = self.slot_as_term(args[0])?;
+        let term = evaluate_even_q_terms(self.session, arg)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_select(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Select.discriminant())));
+        }
+        let list = self.slot_as_term(args[0])?;
+        let pred = self.slot_as_term(args[1])?;
+        let term = evaluate_select_terms(self.session, list, pred)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
+    fn apply_list_convolve(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::ListConvolve.discriminant())));
+        }
+        let ker = self.slot_as_term(args[0])?;
+        let list = self.slot_as_term(args[1])?;
+        let term = evaluate_list_convolve_terms(self.session, ker, list)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     fn host_matrix_free_q(
         &mut self,
         list_slot: SlotValue,
@@ -2645,6 +2675,17 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    /// `MapAll[func, expr]` — 全深度 map。
+    fn apply_map_all(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::MapAll.discriminant())));
+        }
+        let func = self.slot_as_term(args[0])?;
+        let expr = self.slot_as_term(args[1])?;
+        let term = evaluate_map_all_terms(self.session, func, expr)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     /// `Apply[head, list]`。
     fn apply_apply(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
@@ -2903,6 +2944,9 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::TrueQ.discriminant() {
             return self.apply_logical(SemanticOperator::TrueQ, args);
         }
+        if op.0 == SemanticOperator::EvenQ.discriminant() {
+            return self.apply_even_q(args);
+        }
         if op.0 == SemanticOperator::And.discriminant() {
             return self.apply_logical(SemanticOperator::And, args);
         }
@@ -3047,6 +3091,12 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::FreeQ.discriminant() {
             return self.apply_free_q(args);
         }
+        if op.0 == SemanticOperator::Select.discriminant() {
+            return self.apply_select(args);
+        }
+        if op.0 == SemanticOperator::ListConvolve.discriminant() {
+            return self.apply_list_convolve(args);
+        }
         if op.0 == SemanticOperator::Extract.discriminant() {
             return self.apply_extract(args);
         }
@@ -3115,6 +3165,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::MapAt.discriminant() {
             return self.apply_map_at(args);
+        }
+        if op.0 == SemanticOperator::MapAll.discriminant() {
+            return self.apply_map_all(args);
         }
         if op.0 == SemanticOperator::Apply.discriminant() {
             return self.apply_apply(args);

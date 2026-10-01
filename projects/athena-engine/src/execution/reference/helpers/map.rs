@@ -243,3 +243,60 @@ pub(crate) fn evaluate_map_at_terms(
     out[idx] = mapped;
     Ok(push_list(session, out))
 }
+
+fn apply_surface_head(session: &mut Session, func: TermId, args: Vec<TermId>) -> Option<TermId> {
+    if let Some(binders) = function_binders(session, func) {
+        if binders.len() != args.len() {
+            return None;
+        }
+        let mut body = function_body(session, func)?;
+        for (sym, value) in binders.into_iter().zip(args.iter().copied()) {
+            body = crate::execution::builtins::patterns::substitute_symbol(session, body, sym, value);
+        }
+        return re_eval_term(session, body).ok();
+    }
+    let TermNode::Application { head, arguments } = session.arena.get(func)? else {
+        return None;
+    };
+    if !arguments.is_empty() {
+        return None;
+    }
+    Some(match *head {
+        ApplicationHead::Semantic(op) => push_semantic(session, op, args),
+        ApplicationHead::Extension(id) => {
+            let mut b = athena_ir::TermBuilder::new(&mut session.arena);
+            b.application_extension_id(id, args, TermNode::default_span())
+        }
+    })
+}
+
+fn map_all_supported(session: &Session, func: TermId) -> bool {
+    if function_binders(session, func).is_some() {
+        return true;
+    }
+    matches!(
+        session.arena.get(func),
+        Some(TermNode::Application { arguments, .. }) if arguments.is_empty()
+    )
+}
+
+fn map_all_recursive(session: &mut Session, func: TermId, term: TermId) -> Result<TermId> {
+    if let Some(TermNode::Collection { elements, .. }) = session.arena.get(term) {
+        let elements = elements.clone();
+        let mut out = Vec::with_capacity(elements.len());
+        for item in elements {
+            out.push(map_all_recursive(session, func, item)?);
+        }
+        let rebuilt = push_list(session, out);
+        return apply_surface_head(session, func, vec![rebuilt]).ok_or_else(|| diag("map_all_func_unsupported"));
+    }
+    apply_surface_head(session, func, vec![term]).ok_or_else(|| diag("map_all_func_unsupported"))
+}
+
+/// `MapAll[func, expr]` — 全深度 map（0-ary head / `Function`；held surface rebuild）。
+pub(crate) fn evaluate_map_all_terms(session: &mut Session, func: TermId, expr: TermId) -> Result<TermId> {
+    if !map_all_supported(session, func) {
+        return Ok(push_semantic(session, SemanticOperator::MapAll, vec![func, expr]));
+    }
+    map_all_recursive(session, func, expr)
+}
