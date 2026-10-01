@@ -295,6 +295,60 @@ fn compile_and_execute_arccos_zero_is_pi_over_two() {
 }
 
 #[test]
+fn compile_and_execute_inverse_trig_boundary_specials() {
+    use athena_ir::UnaryFunction;
+    let mut session = Session::new();
+    let zero = session.builder().int(0, Default::default());
+    let one = session.builder().int(1, Default::default());
+    let neg_one = session.builder().int(-1, Default::default());
+
+    let arctan0 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::ArcTan));
+    let term = session.builder().application(arctan0, vec![zero], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arctan0");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(0) => {}
+        other => panic!("expected ArcTan[0] == 0, got {other:?}"),
+    }
+
+    let arccos1 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::ArcCos));
+    let term = session.builder().application(arccos1, vec![one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arccos1");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(0) => {}
+        other => panic!("expected ArcCos[1] == 0, got {other:?}"),
+    }
+
+    let arccos_neg1 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::ArcCos));
+    let term = session.builder().application(arccos_neg1, vec![neg_one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arccos-1");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Constant(MathematicalConstant::Pi))) => {}
+        other => panic!("expected ArcCos[-1] == Pi, got {other:?}"),
+    }
+
+    let arcsin1 = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::ArcSin));
+    let term = session.builder().application(arcsin1, vec![one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arcsin1");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Divide),
+            arguments,
+            ..
+        }) if arguments.len() == 2 => {
+            assert!(matches!(
+                session.arena.get(arguments[1]),
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(2)
+            ));
+        }
+        other => panic!("expected ArcSin[1] == Divide[Pi, 2], got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_numerator_denominator_exact() {
     let mut session = Session::new();
     let half = session.builder().number(Number::rational_i64(1, 2).expect("half"), Default::default());
