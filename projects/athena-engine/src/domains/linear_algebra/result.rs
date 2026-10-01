@@ -5,8 +5,8 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 use super::{
     exact::{
         ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
-        ExactTraceResult, det_bareiss, invert_exact, norm2_exact, nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact,
-        trace_exact,
+        ExactTraceResult, det_bareiss, eigenvalues_diagonal_exact, eigenvectors_diagonal_exact, invert_exact, norm2_exact, nullspace_exact,
+        rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
     matrix_result::MatrixResult,
@@ -144,6 +144,8 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::RightSolve { .. } => "right_solve",
         LinearAlgebraRequest::Inverse { .. } => "inverse",
         LinearAlgebraRequest::Trace { .. } => "trace",
+        LinearAlgebraRequest::Eigenvalues { .. } => "eigenvalues",
+        LinearAlgebraRequest::Eigenvectors { .. } => "eigenvectors",
         LinearAlgebraRequest::Dot { .. } => "dot",
         LinearAlgebraRequest::Cross { .. } => "cross",
         LinearAlgebraRequest::NullSpace { .. } => "nullspace",
@@ -224,6 +226,8 @@ pub(crate) fn resolve_own_numeric_bindings(session: &mut crate::runtime::Session
         },
         LinearAlgebraRequest::Inverse { matrix } => LinearAlgebraRequest::Inverse { matrix: resolve_matrix_operand(session, matrix) },
         LinearAlgebraRequest::Trace { matrix } => LinearAlgebraRequest::Trace { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Eigenvalues { matrix } => LinearAlgebraRequest::Eigenvalues { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Eigenvectors { matrix } => LinearAlgebraRequest::Eigenvectors { matrix: resolve_matrix_operand(session, matrix) },
         LinearAlgebraRequest::Dot { lhs, rhs } => LinearAlgebraRequest::Dot {
             lhs: resolve_matrix_operand(session, lhs),
             rhs: resolve_matrix_operand(session, rhs),
@@ -391,6 +395,14 @@ fn run(
                     .detail("hint", "use exact parent"));
             }
             Ok(LinearAlgebraValue::ExactTrace(trace_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::Eigenvalues { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::dot_outcome(eigenvalues_diagonal_exact(&matrix)?))
+        }
+        LinearAlgebraRequest::Eigenvectors { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(eigenvectors_diagonal_exact(&matrix)?))
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
