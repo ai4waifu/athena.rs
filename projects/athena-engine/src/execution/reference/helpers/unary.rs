@@ -43,6 +43,14 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Ok(push_semantic(session, SemanticOperator::Ceiling, vec![term]))
         }
+        SemanticOperator::Round => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(rounded) = exact_round(&clone_number(n)) {
+                    return Ok(push_number(session, rounded));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Round, vec![term]))
+        }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
                 match num_factorial(n) {
@@ -234,6 +242,80 @@ fn ceiling_rational(r: &Rational) -> Number {
         q = q.add(&Integer::one());
     }
     Number::Integer(q)
+}
+
+fn exact_round(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) => n.clone_inline(),
+        Number::Rational(r) => Some(round_rational(r)),
+        Number::Real(Real::Machine(x)) => {
+            let y = round_half_to_even_f64(*x);
+            if !y.is_finite() {
+                return None;
+            }
+            if y.fract() == 0.0 && y.abs() <= i64::MAX as f64 {
+                Some(Number::small_int(y as i64))
+            }
+            else {
+                Some(Number::machine(y))
+            }
+        }
+        _ => None,
+    }
+}
+
+fn round_half_to_even_f64(x: f64) -> f64 {
+    let fl = x.floor();
+    let frac = x - fl;
+    if frac < 0.5 {
+        fl
+    }
+    else if frac > 0.5 {
+        fl + 1.0
+    }
+    else if (fl as i64).rem_euclid(2) == 0 {
+        fl
+    }
+    else {
+        fl + 1.0
+    }
+}
+
+fn round_rational(r: &Rational) -> Number {
+    if r.is_integer() {
+        return Number::Integer(r.numerator());
+    }
+    let numer = r.numerator();
+    let denom = r.denominator();
+    let (q, rem) = numer.div_rem_trunc(&denom).expect("rational denom non-zero");
+    if rem.is_zero() {
+        return Number::Integer(q);
+    }
+    let twice_abs = rem.abs().mul(&Integer::from_i64(2));
+    let denom_abs = denom.abs();
+    let two = Integer::from_i64(2);
+    match twice_abs.cmp(&denom_abs) {
+        core::cmp::Ordering::Less => Number::Integer(q),
+        core::cmp::Ordering::Greater => {
+            if q.is_negative() {
+                Number::Integer(q.sub(&Integer::one()))
+            }
+            else {
+                Number::Integer(q.add(&Integer::one()))
+            }
+        }
+        core::cmp::Ordering::Equal => {
+            if q.rem_euclid(&two).expect("mod two").is_zero() {
+                Number::Integer(q)
+            }
+            else if q.is_negative() {
+                Number::Integer(q.sub(&Integer::one()))
+            }
+            else {
+                Number::Integer(q.add(&Integer::one()))
+            }
+        }
+    }
 }
 
 /// 递归展平有序集合元素（叶子非集合保留原样）。

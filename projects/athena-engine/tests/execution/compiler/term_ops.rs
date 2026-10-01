@@ -181,6 +181,33 @@ fn compile_and_execute_ceiling_exact() {
 }
 
 #[test]
+fn compile_and_execute_round_half_to_even() {
+    let mut session = Session::new();
+    let cases: Vec<(TermId, i64)> = vec![
+        (session.builder().number(Number::machine(2.5), Default::default()), 2),
+        (session.builder().number(Number::machine(3.5), Default::default()), 4),
+        (
+            session.builder().number(Number::rational_i64(5, 2).expect("rational"), Default::default()),
+            2,
+        ),
+        (
+            session.builder().number(Number::rational_i64(-5, 2).expect("rational"), Default::default()),
+            -2,
+        ),
+    ];
+    for (arg, expected) in cases {
+        let round = ApplicationHead::Semantic(SemanticOperator::Round);
+        let term = session.builder().application(round, vec![arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("round");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected Round == {expected}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
