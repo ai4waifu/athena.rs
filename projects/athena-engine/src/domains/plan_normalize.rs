@@ -189,7 +189,7 @@ fn validate_linear_algebra(session: &Session, request: &LinearAlgebraRequest) ->
         | LinearAlgebraRequest::Rref { matrix }
         | LinearAlgebraRequest::Inverse { matrix }
         | LinearAlgebraRequest::Trace { matrix }
-        | LinearAlgebraRequest::Eigenvalues { matrix }
+        | LinearAlgebraRequest::Eigenvalues { matrix, .. }
         | LinearAlgebraRequest::Eigenvectors { matrix }
         | LinearAlgebraRequest::NullSpace { matrix, .. }
         | LinearAlgebraRequest::Norm { matrix }

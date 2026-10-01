@@ -732,6 +732,34 @@ pub fn nullspace_exact(matrix: &MatrixValue) -> Result<ExactNullSpaceResult, Dia
     })
 }
 
+fn matrix_entry_rational(entry: MatrixEntry) -> Result<Rational, Diagnostic> {
+    match entry {
+        MatrixEntry::Integer(z) => Ok(Rational::from_integer(z)),
+        MatrixEntry::Rational(r) => Ok(r),
+        MatrixEntry::MachineF64(_) => Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_entry_machine")),
+        MatrixEntry::ComplexExact { .. } => {
+            Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_entry_complex_pending"))
+        }
+    }
+}
+
+fn sort_rationals_descending(mut values: Vec<Rational>) -> Vec<Rational> {
+    values.sort_by(|left, right| {
+        let a = Number::from_rational_normalized(clone_rational(left));
+        let b = Number::from_rational_normalized(clone_rational(right));
+        num_compare(&b, &a).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    values
+}
+
+fn perfect_sqrt_rational(value: &Rational) -> Result<Rational, Diagnostic> {
+    match num_sqrt(&Number::from_rational_normalized(clone_rational(value))) {
+        Ok(Some(Number::Rational(r))) => Ok(r),
+        Ok(Some(Number::Integer(z))) => Ok(Rational::from_integer(z)),
+        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_discriminant_non_perfect_square")),
+    }
+}
+
 fn diagonal_rationals_descending(matrix: &MatrixValue) -> Result<Vec<(u64, Rational)>, Diagnostic> {
     if matrix.parent().element.is_machine() {
         return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_exact_rejects_machine"));
@@ -745,17 +773,7 @@ fn diagonal_rationals_descending(matrix: &MatrixValue) -> Result<Vec<(u64, Ratio
     }
     let mut diag = Vec::with_capacity(n as usize);
     for i in 0..n {
-        let value = match matrix.get(i, i)? {
-            MatrixEntry::Integer(z) => Rational::from_integer(z),
-            MatrixEntry::Rational(r) => r,
-            MatrixEntry::MachineF64(_) => {
-                return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_entry_machine"));
-            }
-            MatrixEntry::ComplexExact { .. } => {
-                return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_entry_complex_pending"));
-            }
-        };
-        diag.push((i, value));
+        diag.push((i, matrix_entry_rational(matrix.get(i, i)?)?));
     }
     diag.sort_by(|left, right| {
         let a = Number::from_rational_normalized(clone_rational(&left.1));
@@ -771,6 +789,43 @@ pub fn eigenvalues_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, D
     let n = matrix.shape().rows;
     let values = diag.into_iter().map(|(_, value)| value).collect();
     MatrixValue::from_rationals_row_major(1, n, values)
+}
+
+/// 精确实对称 `2×2` 特征值（`1×2` 行向量，降序）。
+pub fn eigenvalues_symmetric_2x2_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_exact_rejects_machine"));
+    }
+    if matrix.shape().rows != 2 || matrix.shape().cols != 2 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "eigen_symmetric_2x2_only"));
+    }
+    if !super::ops::is_symmetric(matrix)? {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_symmetric_2x2_requires_symmetric"));
+    }
+    let a = matrix_entry_rational(matrix.get(0, 0)?)?;
+    let b = matrix_entry_rational(matrix.get(0, 1)?)?;
+    let c = matrix_entry_rational(matrix.get(1, 1)?)?;
+    let trace = a.add(&c);
+    let det = a.mul(&c).sub(&b.mul(&b));
+    let four = Rational::from_integer(Integer::from_i64(4));
+    let disc = trace.mul(&trace).sub(&four.mul(&det));
+    let root = perfect_sqrt_rational(&disc)?;
+    let two = Rational::from_integer(Integer::from_i64(2));
+    let lambda_high = trace.add(&root).try_div(&two)?;
+    let lambda_low = trace.sub(&root).try_div(&two)?;
+    let values = sort_rationals_descending(vec![lambda_high, lambda_low]);
+    MatrixValue::from_rationals_row_major(1, 2, values)
+}
+
+/// 精确特征值（对角阵或实对称 `2×2`；`1×n` 行向量，降序）。
+pub fn eigenvalues_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if is_diagonal(matrix)? {
+        return eigenvalues_diagonal_exact(matrix);
+    }
+    if matrix.shape().rows == 2 && matrix.shape().cols == 2 && super::ops::is_symmetric(matrix)? {
+        return eigenvalues_symmetric_2x2_exact(matrix);
+    }
+    Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_exact_supported_cases_only"))
 }
 
 /// 精确对角阵特征向量（`n×n` 行基，与 [`eigenvalues_diagonal_exact`] 同序）。

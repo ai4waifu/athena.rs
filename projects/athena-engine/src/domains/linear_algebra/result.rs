@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 use super::{
     exact::{
         ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
-        ExactTraceResult, det_bareiss, eigenvalues_diagonal_exact, eigenvectors_diagonal_exact, invert_exact, norm2_exact, nullspace_exact,
+        ExactTraceResult, det_bareiss, eigenvalues_exact, eigenvectors_diagonal_exact, invert_exact, norm2_exact, nullspace_exact,
         rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
@@ -226,7 +226,10 @@ pub(crate) fn resolve_own_numeric_bindings(session: &mut crate::runtime::Session
         },
         LinearAlgebraRequest::Inverse { matrix } => LinearAlgebraRequest::Inverse { matrix: resolve_matrix_operand(session, matrix) },
         LinearAlgebraRequest::Trace { matrix } => LinearAlgebraRequest::Trace { matrix: resolve_matrix_operand(session, matrix) },
-        LinearAlgebraRequest::Eigenvalues { matrix } => LinearAlgebraRequest::Eigenvalues { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::Eigenvalues { matrix, column_vector } => LinearAlgebraRequest::Eigenvalues {
+            matrix: resolve_matrix_operand(session, matrix),
+            column_vector,
+        },
         LinearAlgebraRequest::Eigenvectors { matrix } => LinearAlgebraRequest::Eigenvectors { matrix: resolve_matrix_operand(session, matrix) },
         LinearAlgebraRequest::Dot { lhs, rhs } => LinearAlgebraRequest::Dot {
             lhs: resolve_matrix_operand(session, lhs),
@@ -396,9 +399,15 @@ fn run(
             }
             Ok(LinearAlgebraValue::ExactTrace(trace_exact(&matrix)?))
         }
-        LinearAlgebraRequest::Eigenvalues { matrix } => {
+        LinearAlgebraRequest::Eigenvalues { matrix, column_vector } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::dot_outcome(eigenvalues_diagonal_exact(&matrix)?))
+            let values = eigenvalues_exact(&matrix)?;
+            if column_vector {
+                Ok(LinearAlgebraValue::matrix_outcome(transpose(&values)))
+            }
+            else {
+                Ok(LinearAlgebraValue::dot_outcome(values))
+            }
         }
         LinearAlgebraRequest::Eigenvectors { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
