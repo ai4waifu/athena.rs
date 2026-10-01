@@ -194,10 +194,7 @@ fn compile_and_execute_complex_arg_principal_axis() {
     let cases: Vec<(TermId, fn(&mut Session) -> TermId)> = vec![
         (session.builder().int(1, Default::default()), |s| s.builder().int(0, Default::default())),
         (session.builder().int(-1, Default::default()), |s| {
-            let pi = s.builder().constant(MathematicalConstant::Pi, Default::default());
-            let one = s.builder().int(1, Default::default());
-            let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
-            s.builder().application(divide, vec![pi, one], Default::default())
+            s.builder().constant(MathematicalConstant::Pi, Default::default())
         }),
         (neg_i, |s| {
             let pi = s.builder().constant(MathematicalConstant::Pi, Default::default());
@@ -217,6 +214,33 @@ fn compile_and_execute_complex_arg_principal_axis() {
         let result = session.results.get(result_id).expect("result").symbolic_term.expect("term");
         let want = expected(&mut session);
         assert!(session.arena.structural_eq(result, want), "Arg principal-axis mismatch");
+    }
+}
+
+#[test]
+fn compile_and_execute_neg_one_times_imaginary_unit() {
+    use athena_numeric::{BranchPolicy, Complex, Real};
+    let mut session = Session::new();
+    let neg_one = session.builder().int(-1, Default::default());
+    let unit = Complex::try_new(Real::machine(0.0), Real::machine(1.0), BranchPolicy::Principal).expect("imaginary unit");
+    let i = session.builder().number(Number::complex(unit), Default::default());
+    let mult = ApplicationHead::Semantic(SemanticOperator::Multiply);
+    let term = session.builder().application(mult, vec![neg_one, i], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("mul");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let result = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(result) {
+        Some(TermNode::Atom(Atom::Number(n))) => {
+            let z = n.as_complex().expect("complex");
+            match (&z.re, &z.im) {
+                (Real::Machine(re), Real::Machine(im)) => {
+                    assert_eq!(*re, 0.0);
+                    assert_eq!(*im, -1.0);
+                }
+                other => panic!("expected machine complex, got {other:?}"),
+            }
+        }
+        other => panic!("expected (-1)*I == -I machine complex, got {other:?}"),
     }
 }
 

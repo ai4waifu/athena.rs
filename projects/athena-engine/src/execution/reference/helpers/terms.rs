@@ -109,6 +109,9 @@ pub(crate) fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId>
     if denom == 0 {
         return None;
     }
+    if denom == 1 {
+        return Some(session.builder().constant(MathematicalConstant::Pi, Default::default()));
+    }
     let pi = session.builder().constant(MathematicalConstant::Pi, Default::default());
     let d = session.builder().int(denom, Default::default());
     Some(push_semantic(session, SemanticOperator::Divide, vec![pi, d]))

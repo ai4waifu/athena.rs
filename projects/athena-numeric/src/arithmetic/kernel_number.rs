@@ -2,7 +2,14 @@
 
 use athena_types::{Diagnostic, DiagnosticCode, Result};
 
-use crate::{execution_budget::NumericContext, integer::Integer, number::NumericValue, rational::Rational, real::Real};
+use crate::{
+    complex::Complex,
+    execution_budget::NumericContext,
+    integer::Integer,
+    number::NumericValue,
+    rational::Rational,
+    real::Real,
+};
 
 enum Lifted {
     Integer(Integer),
@@ -46,8 +53,57 @@ pub fn add(a: NumericValue, b: NumericValue) -> Result<NumericValue> {
     }
 }
 
+fn complex_ref(n: &NumericValue) -> Option<&Complex> {
+    match n {
+        NumericValue::Complex(z) => Some(z),
+        _ => None,
+    }
+}
+
+fn machine_scale_factor(scalar: &NumericValue) -> Result<f64> {
+    match scalar {
+        NumericValue::Integer(i) => i
+            .try_to_f64_exact()
+            .ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "complex_scale")),
+        NumericValue::Rational(r) => r
+            .try_to_f64_exact()
+            .ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "complex_scale")),
+        NumericValue::Real(Real::Machine(x)) => Ok(*x),
+        NumericValue::Real(Real::Decimal(b)) => b
+            .to_f64_approximate()
+            .ok_or_else(|| Diagnostic::new(DiagnosticCode::PromotionFailed).detail("domain", "numeric").detail("operation", "complex_scale")),
+        _ => Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "complex_scale")),
+    }
+}
+
+fn scale_complex(z: &Complex, scalar: &NumericValue) -> Result<Complex> {
+    let s = machine_scale_factor(scalar)?;
+    let re = match &z.re {
+        Real::Machine(x) => *x,
+        Real::Decimal(_) => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "complex_scale"));
+        }
+    };
+    let im = match &z.im {
+        Real::Machine(x) => *x,
+        Real::Decimal(_) => {
+            return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("domain", "numeric").detail("operation", "complex_scale"));
+        }
+    };
+    Complex::try_new(Real::machine(re * s), Real::machine(im * s), z.branch)
+}
+
 /// 乘法（含 promotion）。
 pub fn mul(a: NumericValue, b: NumericValue) -> Result<NumericValue> {
+    if let (Some(za), Some(zb)) = (complex_ref(&a), complex_ref(&b)) {
+        return Ok(NumericValue::complex(za.mul(zb)?));
+    }
+    if let Some(z) = complex_ref(&a) {
+        return scale_complex(z, &b).map(NumericValue::complex);
+    }
+    if let Some(z) = complex_ref(&b) {
+        return scale_complex(z, &a).map(NumericValue::complex);
+    }
     match (lift(&a)?, lift(&b)?) {
         (Lifted::Integer(x), Lifted::Integer(y)) => Ok(unlift_exact_int(x.mul(&y))),
         (Lifted::Rational(x), Lifted::Rational(y)) => Ok(unlift_exact_rat(x.mul(&y))),
