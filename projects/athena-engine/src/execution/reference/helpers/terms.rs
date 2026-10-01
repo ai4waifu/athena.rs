@@ -73,6 +73,7 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
                 Some(session.builder().constant(MathematicalConstant::Pi, Default::default()))
             }
             UnaryFunction::Sinh if n.is_zero() => Some(session.builder().int(0, Default::default())),
+            UnaryFunction::Tanh if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::Cosh if n.is_zero() => Some(session.builder().int(1, Default::default())),
             UnaryFunction::ArcTan if n.is_zero() => Some(session.builder().int(0, Default::default())),
             UnaryFunction::ArcTan if n.is_one() => exact_pi_over(session, 4),
