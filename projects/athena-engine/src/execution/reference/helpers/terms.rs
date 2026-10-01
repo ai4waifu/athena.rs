@@ -120,34 +120,63 @@ pub(crate) fn exact_neg_pi_over(session: &mut Session, denom: i64) -> Option<Ter
     Some(push_semantic(session, SemanticOperator::Multiply, vec![minus_one, pi_over]))
 }
 
-/// `Arg[z]` on principal-axis machine complexes (`I`, `-I`, positive/negative reals).
+/// `Arg[z]` on principal-axis machine complexes and exact real scalars.
 pub(crate) fn exact_arg(session: &mut Session, n: &Number) -> Option<TermId> {
     use athena_numeric::Real;
-    let z = n.as_complex()?;
-    let re = match &z.re {
-        Real::Machine(x) => *x,
-        _ => return None,
-    };
-    let im = match &z.im {
-        Real::Machine(x) => *x,
-        _ => return None,
-    };
-    if re == 0.0 {
-        if im > 0.0 {
-            return exact_pi_over(session, 2);
+    if let Some(z) = n.as_complex() {
+        let re = match &z.re {
+            Real::Machine(x) => *x,
+            _ => return None,
+        };
+        let im = match &z.im {
+            Real::Machine(x) => *x,
+            _ => return None,
+        };
+        if re == 0.0 {
+            if im > 0.0 {
+                return exact_pi_over(session, 2);
+            }
+            if im < 0.0 {
+                return exact_neg_pi_over(session, 2);
+            }
+            return None;
         }
-        if im < 0.0 {
-            return exact_neg_pi_over(session, 2);
+        if im == 0.0 {
+            if re > 0.0 {
+                return Some(session.builder().int(0, Default::default()));
+            }
+            if re < 0.0 {
+                return exact_pi_over(session, 1);
+            }
         }
         return None;
     }
-    if im == 0.0 {
-        if re > 0.0 {
+    if let Some(i) = n.as_exact_integer() {
+        if i > 0 {
             return Some(session.builder().int(0, Default::default()));
         }
-        if re < 0.0 {
+        if i < 0 {
             return exact_pi_over(session, 1);
         }
+        return None;
+    }
+    if let Some(r) = n.as_rational() {
+        if r.is_zero() {
+            return None;
+        }
+        if r.is_negative() {
+            return exact_pi_over(session, 1);
+        }
+        return Some(session.builder().int(0, Default::default()));
+    }
+    if let Some(x) = n.as_machine_f64() {
+        if x == 0.0 {
+            return None;
+        }
+        if x < 0.0 {
+            return exact_pi_over(session, 1);
+        }
+        return Some(session.builder().int(0, Default::default()));
     }
     None
 }

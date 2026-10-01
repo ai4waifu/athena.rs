@@ -185,6 +185,42 @@ fn compile_and_execute_complex_arg_exact_on_i() {
 }
 
 #[test]
+fn compile_and_execute_complex_arg_principal_axis() {
+    use athena_ir::MathematicalConstant;
+    use athena_numeric::{BranchPolicy, Complex, Real};
+    let mut session = Session::new();
+    let unit = Complex::try_new(Real::machine(0.0), Real::machine(-1.0), BranchPolicy::Principal).expect("negative imaginary unit");
+    let neg_i = session.builder().number(Number::complex(unit), Default::default());
+    let cases: Vec<(TermId, fn(&mut Session) -> TermId)> = vec![
+        (session.builder().int(1, Default::default()), |s| s.builder().int(0, Default::default())),
+        (session.builder().int(-1, Default::default()), |s| {
+            let pi = s.builder().constant(MathematicalConstant::Pi, Default::default());
+            let one = s.builder().int(1, Default::default());
+            let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+            s.builder().application(divide, vec![pi, one], Default::default())
+        }),
+        (neg_i, |s| {
+            let pi = s.builder().constant(MathematicalConstant::Pi, Default::default());
+            let two = s.builder().int(2, Default::default());
+            let divide = ApplicationHead::Semantic(SemanticOperator::Divide);
+            let pi_over = s.builder().application(divide, vec![pi, two], Default::default());
+            let neg_one = s.builder().int(-1, Default::default());
+            let minus = ApplicationHead::Semantic(SemanticOperator::Multiply);
+            s.builder().application(minus, vec![neg_one, pi_over], Default::default())
+        }),
+    ];
+    for (arg, expected) in cases {
+        let head = ApplicationHead::Semantic(SemanticOperator::Arg);
+        let term = session.builder().application(head, vec![arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arg");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        let result = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+        let want = expected(&mut session);
+        assert!(session.arena.structural_eq(result, want), "Arg principal-axis mismatch");
+    }
+}
+
+#[test]
 fn compile_and_execute_floor_exact() {
     let mut session = Session::new();
     let cases: Vec<(TermId, i64)> = vec![
