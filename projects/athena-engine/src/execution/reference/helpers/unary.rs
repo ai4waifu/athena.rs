@@ -51,6 +51,22 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             }
             Ok(push_semantic(session, SemanticOperator::Round, vec![term]))
         }
+        SemanticOperator::Numerator => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(num) = exact_numerator(&clone_number(n)) {
+                    return Ok(push_number(session, num));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Numerator, vec![term]))
+        }
+        SemanticOperator::Denominator => {
+            if let Some(n) = number_of(session, term) {
+                if let Some(denom) = exact_denominator(&clone_number(n)) {
+                    return Ok(push_number(session, denom));
+                }
+            }
+            Ok(push_semantic(session, SemanticOperator::Denominator, vec![term]))
+        }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {
                 match num_factorial(n) {
@@ -278,6 +294,22 @@ fn round_half_to_even_f64(x: f64) -> f64 {
     }
     else {
         fl + 1.0
+    }
+}
+
+fn exact_numerator(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) => n.clone_inline(),
+        Number::Rational(r) => Some(Number::Integer(r.numerator())),
+        _ => None,
+    }
+}
+
+fn exact_denominator(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) => Some(Number::small_int(1)),
+        Number::Rational(r) => Some(Number::Integer(r.denominator())),
+        _ => None,
     }
 }
 

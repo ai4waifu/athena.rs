@@ -239,6 +239,63 @@ fn compile_and_execute_elementary_zero_specials() {
 }
 
 #[test]
+fn compile_and_execute_arctan_one_is_pi_over_four() {
+    use athena_ir::UnaryFunction;
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let arctan = ApplicationHead::Semantic(SemanticOperator::Unary(UnaryFunction::ArcTan));
+    let term = session.builder().application(arctan, vec![one], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("arctan");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Divide),
+            arguments,
+            ..
+        }) if arguments.len() == 2 => {
+            assert!(matches!(
+                session.arena.get(arguments[0]),
+                Some(TermNode::Atom(Atom::Constant(MathematicalConstant::Pi)))
+            ));
+            assert!(matches!(
+                session.arena.get(arguments[1]),
+                Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(4)
+            ));
+        }
+        other => panic!("expected ArcTan[1] == Divide[Pi, 4], got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_and_execute_numerator_denominator_exact() {
+    let mut session = Session::new();
+    let half = session.builder().number(Number::rational_i64(1, 2).expect("half"), Default::default());
+    let three_quarters = session.builder().number(Number::rational_i64(3, 4).expect("three quarters"), Default::default());
+    for (op, arg, expected) in [
+        (SemanticOperator::Numerator, half, 1i64),
+        (SemanticOperator::Denominator, three_quarters, 4i64),
+    ] {
+        let head = ApplicationHead::Semantic(op);
+        let term = session.builder().application(head, vec![arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("compile");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected {op:?} == {expected}, got {other:?}"),
+        }
+    }
+    let five = session.builder().int(5, Default::default());
+    let num_five = ApplicationHead::Semantic(SemanticOperator::Numerator);
+    let term = session.builder().application(num_five, vec![five], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("numerator int");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(5) => {}
+        other => panic!("expected Numerator[5] == 5, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
