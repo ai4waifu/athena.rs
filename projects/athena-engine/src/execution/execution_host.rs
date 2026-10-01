@@ -2908,7 +2908,7 @@ impl<'a> ExecutionHost<'a> {
         }
         let left = args[0];
         let right = args[1];
-        if op == SemanticOperator::Identical {
+        if op == SemanticOperator::Identical || op == SemanticOperator::Unidentical {
             let same = match (left, right) {
                 (SlotValue::Boolean(a), SlotValue::Boolean(b)) => a == b,
                 (SlotValue::Symbol(a), SlotValue::Symbol(b)) => a == b,
@@ -2926,7 +2926,8 @@ impl<'a> ExecutionHost<'a> {
                     }
                 }
             };
-            return Ok(HostOutcome::Value(SlotValue::Boolean(same)));
+            let value = if op == SemanticOperator::Unidentical { !same } else { same };
+            return Ok(HostOutcome::Value(SlotValue::Boolean(value)));
         }
         let bool_out = |eq: bool| -> HostOutcome {
             let v = if op == SemanticOperator::Unequal { !eq } else { eq };
@@ -3101,12 +3102,16 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Equal.discriminant()
             || op.0 == SemanticOperator::Unequal.discriminant()
             || op.0 == SemanticOperator::Identical.discriminant()
+            || op.0 == SemanticOperator::Unidentical.discriminant()
         {
             let op = if op.0 == SemanticOperator::Equal.discriminant() {
                 SemanticOperator::Equal
             }
             else if op.0 == SemanticOperator::Unequal.discriminant() {
                 SemanticOperator::Unequal
+            }
+            else if op.0 == SemanticOperator::Unidentical.discriminant() {
+                SemanticOperator::Unidentical
             }
             else {
                 SemanticOperator::Identical

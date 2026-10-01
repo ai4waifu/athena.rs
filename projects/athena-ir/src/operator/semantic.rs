@@ -144,6 +144,8 @@ pub enum SemanticOperator {
     Unequal,
     /// 同一（相同结构 / 槽位标识）。
     Identical,
+    /// 不同一（`!Identical`；方言 `UnsameQ`）。
+    Unidentical,
     /// `<`
     Less,
     /// `>`
@@ -386,6 +388,7 @@ impl SemanticOperator {
             Self::Equal => 10,
             Self::Unequal => 11,
             Self::Identical => 12,
+            Self::Unidentical => 274,
             Self::Less => 13,
             Self::Greater => 14,
             Self::LessEqual => 15,
@@ -516,6 +519,7 @@ impl SemanticOperator {
             10 => Some(Self::Equal),
             11 => Some(Self::Unequal),
             12 => Some(Self::Identical),
+            274 => Some(Self::Unidentical),
             13 => Some(Self::Less),
             14 => Some(Self::Greater),
             15 => Some(Self::LessEqual),
@@ -650,6 +654,7 @@ impl SemanticOperator {
             Self::Equal => "Equal",
             Self::Unequal => "Unequal",
             Self::Identical => "Identical",
+            Self::Unidentical => "Unidentical",
             Self::Less => "Less",
             Self::Greater => "Greater",
             Self::LessEqual => "LessEqual",
