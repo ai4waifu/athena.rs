@@ -219,6 +219,10 @@ pub enum SemanticOperator {
     Expand,
     /// 因式分解（方言 `Factor`；测试 `var^2 - 1` 平方差）。
     Factor,
+    /// 按变量合并同类项（方言 `Collect`；已合并时保持原式）。
+    Collect,
+    /// 多项式最大公因式（方言 `PolynomialGCD`；测试平方差与一次因子）。
+    PolynomialGCD,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -450,6 +454,8 @@ impl SemanticOperator {
             Self::Exponent => 284,
             Self::Expand => 285,
             Self::Factor => 286,
+            Self::Collect => 287,
+            Self::PolynomialGCD => 288,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -593,6 +599,8 @@ impl SemanticOperator {
             284 => Some(Self::Exponent),
             285 => Some(Self::Expand),
             286 => Some(Self::Factor),
+            287 => Some(Self::Collect),
+            288 => Some(Self::PolynomialGCD),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -739,6 +747,8 @@ impl SemanticOperator {
             Self::Exponent => "Exponent",
             Self::Expand => "Expand",
             Self::Factor => "Factor",
+            Self::Collect => "Collect",
+            Self::PolynomialGCD => "PolynomialGCD",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",

@@ -708,6 +708,79 @@ fn compile_and_execute_expand_and_factor_binomial() {
 }
 
 #[test]
+fn compile_and_execute_collect_and_polynomial_gcd() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let y = session.builder().symbol("y", Default::default());
+    let two = session.builder().int(2, Default::default());
+    let neg_one = session.builder().int(-1, Default::default());
+    let x2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, two],
+        Default::default(),
+    );
+    let two_x_y = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Multiply),
+        vec![two, x, y],
+        Default::default(),
+    );
+    let y2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![y, two],
+        Default::default(),
+    );
+    let poly = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, two_x_y, y2],
+        Default::default(),
+    );
+    let collect = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Collect),
+        vec![poly, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(collect)).expect("collect");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert!(session.arena.structural_eq(
+        session.results.get(result_id).expect("result").symbolic_term.expect("term"),
+        poly,
+    ));
+
+    let diff = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, neg_one],
+        Default::default(),
+    );
+    let linear = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x, neg_one],
+        Default::default(),
+    );
+    let gcd = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::PolynomialGCD),
+        vec![diff, linear],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(gcd)).expect("gcd");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    let out = session.results.get(result_id).expect("result").symbolic_term.expect("term");
+    match session.arena.get(out) {
+        Some(TermNode::Application {
+            head: ApplicationHead::Semantic(SemanticOperator::Add),
+            arguments,
+            ..
+        }) if arguments.len() == 2 => {
+            assert!(
+                (session.arena.structural_eq(arguments[0], x) && session.arena.structural_eq(arguments[1], neg_one))
+                    || (session.arena.structural_eq(arguments[0], neg_one) && session.arena.structural_eq(arguments[1], x))
+            );
+        }
+        other => panic!("expected PolynomialGCD[x^2-1, x-1] == x-1, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());

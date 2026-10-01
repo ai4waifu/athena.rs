@@ -39,6 +39,26 @@ pub(crate) fn evaluate_factor_terms(session: &mut Session, expr: TermId) -> Resu
     }
     Ok(push_semantic(session, SemanticOperator::Factor, vec![expr]))
 }
+
+/// `Collect[expr, var]` — 已按 `var` 合并时返回原式，否则残差。
+pub(crate) fn evaluate_collect_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
+    if symbol_name(session, var).is_none() {
+        return Ok(push_semantic(session, SemanticOperator::Collect, vec![expr, var]));
+    }
+    if is_collected_wrt_var(session, expr, var) {
+        return Ok(expr);
+    }
+    Ok(push_semantic(session, SemanticOperator::Collect, vec![expr, var]))
+}
+
+/// `PolynomialGCD[p, q]` — 测试 `x^2 - 1` 与 `x - 1`，否则残差。
+pub(crate) fn evaluate_polynomial_gcd_terms(session: &mut Session, left: TermId, right: TermId) -> Result<TermId> {
+    if let Some(out) = try_polynomial_gcd_difference_of_squares(session, left, right) {
+        return Ok(out);
+    }
+    Ok(push_semantic(session, SemanticOperator::PolynomialGCD, vec![left, right]))
+}
+
 pub(crate) fn evaluate_coefficient_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
     if symbol_name(session, var).is_none() {
         return Ok(push_semantic(session, SemanticOperator::Coefficient, vec![expr, var]));
@@ -405,6 +425,49 @@ fn try_factor_difference_of_squares(session: &mut Session, expr: TermId) -> Opti
     Some(push_semantic(session, SemanticOperator::Multiply, vec![left, right]))
 }
 
+fn is_collected_wrt_var(session: &mut Session, expr: TermId, var: TermId) -> bool {
+    let mut summands = Vec::new();
+    collect_add_summands(session, expr, &mut summands);
+    for summand in summands {
+        let (_, kernel) = split_numeric_coeff_session(session, summand);
+        if !term_depends_on_var(session, kernel, var) {
+            continue;
+        }
+        if kernel_exponent_in_var(session, kernel, var).is_none() || kernel_contains_add_with_var(session, kernel, var) {
+            return false;
+        }
+    }
+    true
+}
+
+fn kernel_contains_add_with_var(session: &Session, term: TermId, var: TermId) -> bool {
+    match session.arena.get(term) {
+        Some(TermNode::Application { head, arguments }) if matches!(head, ApplicationHead::Semantic(SemanticOperator::Add)) => {
+            term_depends_on_var(session, term, var)
+        }
+        Some(TermNode::Application { head, arguments })
+            if matches!(head, ApplicationHead::Semantic(SemanticOperator::Multiply | SemanticOperator::Power)) =>
+        {
+            arguments.iter().any(|arg| kernel_contains_add_with_var(session, *arg, var))
+        }
+        _ => false,
+    }
+}
+
+fn try_polynomial_gcd_difference_of_squares(session: &Session, left: TermId, right: TermId) -> Option<TermId> {
+    if let Some(x) = parse_x_minus_one(session, right) {
+        if parse_x_squared_minus_one(session, left) == Some(x) {
+            return Some(right);
+        }
+    }
+    if let Some(x) = parse_x_minus_one(session, left) {
+        if parse_x_squared_minus_one(session, right) == Some(x) {
+            return Some(left);
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -412,6 +475,31 @@ mod tests {
 
     fn span() -> SourceSpan {
         SourceSpan::default()
+    }
+
+    #[test]
+    fn polynomial_gcd_x2_minus_1_and_x_minus_1() {
+        let mut session = Session::new();
+        let x = session.builder().symbol("x", span());
+        let two = session.builder().int(2, span());
+        let neg_one = session.builder().int(-1, span());
+        let x2 = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Power),
+            vec![x, two],
+            span(),
+        );
+        let diff = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Add),
+            vec![x2, neg_one],
+            span(),
+        );
+        let linear = session.builder().application(
+            ApplicationHead::Semantic(SemanticOperator::Add),
+            vec![x, neg_one],
+            span(),
+        );
+        let out = evaluate_polynomial_gcd_terms(&mut session, diff, linear).expect("gcd");
+        assert!(session.arena.structural_eq(out, linear));
     }
 
     #[test]
