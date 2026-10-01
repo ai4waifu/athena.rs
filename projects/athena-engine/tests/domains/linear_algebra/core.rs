@@ -1479,3 +1479,42 @@ fn l0_num_elements_scalar_on_empty_matrix() {
     let n = num_elements_scalar(&empty).expect("numel");
     assert_eq!(n.get(0, 0).unwrap(), MatrixEntry::Integer(i(0)));
 }
+
+#[test]
+fn goal_matrix_exp_skew_symmetric_2x2_rotation_generator() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        domains::linear_algebra::matrix_exp_exact,
+        execution::execute_ir_request,
+    };
+    use athena_ir::{Atom, TermNode};
+    use athena_types::ComputationStatus;
+
+    let generator = MatrixValue::from_integers_row_major(2, 2, vec![i(0), i(1), i(-1), i(0)]).unwrap();
+    let exp = matrix_exp_exact(&generator).expect("matrix exp");
+    let c = 1.0_f64.cos();
+    let s = 1.0_f64.sin();
+    let f64_entry = |entry: MatrixEntry| match entry {
+        MatrixEntry::MachineF64(x) => x,
+        other => panic!("expected machine entry, got {other:?}"),
+    };
+    assert!((f64_entry(exp.get(0, 0).unwrap()) - c).abs() < 1e-12);
+    assert!((f64_entry(exp.get(0, 1).unwrap()) - s).abs() < 1e-12);
+    assert!((f64_entry(exp.get(1, 0).unwrap()) + s).abs() < 1e-12);
+    assert!((f64_entry(exp.get(1, 1).unwrap()) - c).abs() < 1e-12);
+
+    let mut session = Session::new();
+    let matrix = session.matrix_objects.intern(generator);
+    let request = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(LinearAlgebraRequest::MatrixExp {
+        matrix: matrix.into(),
+    })));
+    let result_id = execute_ir_request(&mut session, request).expect("matrix exp goal");
+    let result = session.results.get(result_id).expect("result");
+    assert_eq!(result.status, ComputationStatus::Approximate);
+    let term = result.symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("matrix")
+    else {
+        panic!("expected nested matrix");
+    };
+    assert_eq!(rows.len(), 2);
+}

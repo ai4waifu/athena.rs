@@ -191,6 +191,11 @@ pub enum LinearAlgebraRequest {
         /// 输入（对象句柄或符号绑定）。
         matrix: MatrixOperand,
     },
+    /// 矩阵指数（精确 `2×2` 斜对称生成元 `[[0,θ],[-θ,0]]` → 机器旋转矩阵）。
+    MatrixExp {
+        /// 输入方阵（对象句柄或符号绑定）。
+        matrix: MatrixOperand,
+    },
 }
 
 impl LinearAlgebraRequest {
@@ -231,6 +236,7 @@ impl LinearAlgebraRequest {
                 order: *order,
             },
             Self::NumElements { matrix } => Self::NumElements { matrix: *matrix },
+            Self::MatrixExp { matrix } => Self::MatrixExp { matrix: *matrix },
         }
     }
 }

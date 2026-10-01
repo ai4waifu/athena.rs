@@ -25,8 +25,8 @@ pub use equality::{MatrixEqualityKind, matrices_equal};
 pub use exact::{
     ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
     ExactTraceResult, det_bareiss, eigenvalues_diagonal_exact, eigenvalues_exact, eigenvalues_symmetric_2x2_exact,
-    eigenvectors_diagonal_exact, eigenvectors_exact, eigenvectors_symmetric_2x2_exact, invert_exact, norm2_exact, nullspace_exact,
-    rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
+    eigenvectors_diagonal_exact, eigenvectors_exact, eigenvectors_symmetric_2x2_exact, invert_exact, matrix_exp_exact, norm2_exact,
+    nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
 };
 pub use index::{AxisRange, IndexSpec, scalar_index_from_one_based, slice_index_from_one_based_inclusive};
 pub use machine::{

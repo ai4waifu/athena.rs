@@ -5,8 +5,8 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 use super::{
     exact::{
         ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
-        ExactTraceResult, det_bareiss, eigenvalues_exact, eigenvectors_exact, invert_exact, norm2_exact, nullspace_exact,
-        rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
+        ExactTraceResult, det_bareiss, eigenvalues_exact, eigenvectors_exact, invert_exact, matrix_exp_exact, norm2_exact,
+        nullspace_exact, rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
     matrix_result::MatrixResult,
@@ -159,6 +159,7 @@ pub fn operation_name(request: &LinearAlgebraRequest) -> &'static str {
         LinearAlgebraRequest::IsSymmetric { .. } => "is_symmetric",
         LinearAlgebraRequest::Reshape { .. } => "reshape",
         LinearAlgebraRequest::NumElements { .. } => "num_elements",
+        LinearAlgebraRequest::MatrixExp { .. } => "matrix_exp",
     }
 }
 
@@ -269,6 +270,7 @@ pub(crate) fn resolve_own_numeric_bindings(session: &mut crate::runtime::Session
             order,
         },
         LinearAlgebraRequest::NumElements { matrix } => LinearAlgebraRequest::NumElements { matrix: resolve_matrix_operand(session, matrix) },
+        LinearAlgebraRequest::MatrixExp { matrix } => LinearAlgebraRequest::MatrixExp { matrix: resolve_matrix_operand(session, matrix) },
     }
 }
 
@@ -499,6 +501,10 @@ fn run(
         LinearAlgebraRequest::NumElements { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
             Ok(LinearAlgebraValue::dot_outcome(num_elements_scalar(&matrix)?))
+        }
+        LinearAlgebraRequest::MatrixExp { matrix } => {
+            let matrix = matrix.resolve_value(store, matrix_binding)?;
+            Ok(LinearAlgebraValue::matrix_outcome(matrix_exp_exact(&matrix)?))
         }
     }
 }

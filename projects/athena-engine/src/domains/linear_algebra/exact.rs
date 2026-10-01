@@ -910,6 +910,33 @@ pub fn eigenvectors_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnosti
     Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigenvectors_exact_supported_cases_only"))
 }
 
+/// 矩阵指数：精确 `2×2` 斜对称生成元 `[[0,θ],[-θ,0]]` → 机器旋转矩阵。
+pub fn matrix_exp_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "matrix_exp_exact_rejects_machine"));
+    }
+    if matrix.shape().rows != 2 || matrix.shape().cols != 2 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "matrix_exp_skew_2x2_only"));
+    }
+    let zero = Rational::from_integer(Integer::from_i64(0));
+    let a00 = matrix_entry_rational(matrix.get(0, 0)?)?;
+    let a01 = matrix_entry_rational(matrix.get(0, 1)?)?;
+    let a10 = matrix_entry_rational(matrix.get(1, 0)?)?;
+    let a11 = matrix_entry_rational(matrix.get(1, 1)?)?;
+    if a00 != zero || a11 != zero {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "matrix_exp_skew_2x2_only"));
+    }
+    if !a01.add(&a10).is_zero() {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "matrix_exp_skew_2x2_only"));
+    }
+    let theta = athena_numeric::to_f64_lossy(&Number::from_rational_normalized(clone_rational(&a01))).ok_or_else(|| {
+        Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "matrix_exp_theta_not_machine_representable")
+    })?;
+    let c = theta.cos();
+    let s = theta.sin();
+    MatrixValue::from_f64_row_major(2, 2, vec![c, s, -s, c])
+}
+
 /// 精确对角阵特征向量（`n×n` 行基，与 [`eigenvalues_diagonal_exact`] 同序）。
 pub fn eigenvectors_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     let diag = diagonal_rationals_descending(matrix)?;
