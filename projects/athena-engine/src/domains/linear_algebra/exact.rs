@@ -910,14 +910,30 @@ pub fn eigenvectors_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnosti
     Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigenvectors_exact_supported_cases_only"))
 }
 
-/// 矩阵指数：精确 `2×2` 斜对称生成元 `[[0,θ],[-θ,0]]` → 机器旋转矩阵。
-pub fn matrix_exp_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
-    if matrix.parent().element.is_machine() {
-        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "matrix_exp_exact_rejects_machine"));
+fn matrix_exp_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    let n = matrix.shape().rows;
+    if n != matrix.shape().cols {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "matrix_exp_requires_square"));
     }
-    if matrix.shape().rows != 2 || matrix.shape().cols != 2 {
-        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "matrix_exp_skew_2x2_only"));
+    let mut data = Vec::with_capacity((n * n) as usize);
+    for row in 0..n {
+        for col in 0..n {
+            if row == col {
+                let d = matrix_entry_rational(matrix.get(row, col)?)?;
+                let x = athena_numeric::to_f64_lossy(&Number::from_rational_normalized(clone_rational(&d))).ok_or_else(|| {
+                    Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "matrix_exp_diagonal_not_machine_representable")
+                })?;
+                data.push(x.exp());
+            }
+            else {
+                data.push(0.0);
+            }
+        }
     }
+    MatrixValue::from_f64_row_major(n, n, data)
+}
+
+fn matrix_exp_skew_symmetric_2x2_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     let zero = Rational::from_integer(Integer::from_i64(0));
     let a00 = matrix_entry_rational(matrix.get(0, 0)?)?;
     let a01 = matrix_entry_rational(matrix.get(0, 1)?)?;
@@ -935,6 +951,20 @@ pub fn matrix_exp_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic>
     let c = theta.cos();
     let s = theta.sin();
     MatrixValue::from_f64_row_major(2, 2, vec![c, s, -s, c])
+}
+
+/// 矩阵指数：精确对角生成元或 `2×2` 斜对称生成元 `[[0,θ],[-θ,0]]`。
+pub fn matrix_exp_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "matrix_exp_exact_rejects_machine"));
+    }
+    if is_diagonal(matrix)? {
+        return matrix_exp_diagonal_exact(matrix);
+    }
+    if matrix.shape().rows == 2 && matrix.shape().cols == 2 {
+        return matrix_exp_skew_symmetric_2x2_exact(matrix);
+    }
+    Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "matrix_exp_supported_cases_only"))
 }
 
 /// 精确对角阵特征向量（`n×n` 行基，与 [`eigenvalues_diagonal_exact`] 同序）。

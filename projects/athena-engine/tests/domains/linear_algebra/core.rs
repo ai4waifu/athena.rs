@@ -1481,6 +1481,22 @@ fn l0_num_elements_scalar_on_empty_matrix() {
 }
 
 #[test]
+fn matrix_exp_diagonal_zero_is_identity() {
+    use athena_engine::domains::linear_algebra::matrix_exp_exact;
+
+    let zero = MatrixValue::from_integers_row_major(2, 2, vec![i(0), i(0), i(0), i(0)]).unwrap();
+    let exp = matrix_exp_exact(&zero).expect("matrix exp");
+    let f64_entry = |entry: MatrixEntry| match entry {
+        MatrixEntry::MachineF64(x) => x,
+        other => panic!("expected machine entry, got {other:?}"),
+    };
+    assert!((f64_entry(exp.get(0, 0).unwrap()) - 1.0).abs() < 1e-12);
+    assert!(f64_entry(exp.get(0, 1).unwrap()).abs() < 1e-12);
+    assert!(f64_entry(exp.get(1, 0).unwrap()).abs() < 1e-12);
+    assert!((f64_entry(exp.get(1, 1).unwrap()) - 1.0).abs() < 1e-12);
+}
+
+#[test]
 fn goal_matrix_exp_skew_symmetric_2x2_rotation_generator() {
     use athena_engine::{
         api::{AthenaRequest, DomainGoal},
