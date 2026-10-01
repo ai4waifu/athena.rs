@@ -5,6 +5,7 @@ use athena_numeric::{abs as num_abs, factorial as num_factorial, sqrt as num_sqr
 use athena_types::{Result, TermId};
 
 use super::diag;
+use super::terms::exact_sinc;
 use crate::{
     execution::{number_of, push_extension, push_number, push_semantic},
     runtime::{
@@ -74,6 +75,12 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 }
             }
             Ok(push_semantic(session, SemanticOperator::UnitStep, vec![term]))
+        }
+        SemanticOperator::Sinc => {
+            if let Some(out) = exact_sinc(session, term) {
+                return Ok(out);
+            }
+            Ok(push_semantic(session, SemanticOperator::Sinc, vec![term]))
         }
         SemanticOperator::Factorial => {
             if let Some(n) = number_of(session, term) {

@@ -19,6 +19,19 @@ use crate::{
     },
 };
 
+/// `Sinc[x]`：`Sin[x]/x` 在零与 Pi 倍数上的精确特化。
+pub(crate) fn exact_sinc(session: &mut Session, arg: TermId) -> Option<TermId> {
+    use crate::runtime::values::arena::push_int;
+
+    if number_of(session, arg).is_some_and(|n| clone_number(n).is_zero()) {
+        return Some(push_int(session, 1));
+    }
+    if normalize_pi_angle_session(session, arg).is_some_and(|k| k != 0) {
+        return Some(push_int(session, 0));
+    }
+    None
+}
+
 /// 编译并再求值一项。失败与取消/预算诊断向上传播，禁止吞成原项。
 ///
 /// 嵌套入口经 Session [`crate::runtime::session::SharedExecutionControl`] 继承取消与剩余预算。
