@@ -457,6 +457,42 @@ fn compile_and_execute_sinc_specials() {
 }
 
 #[test]
+fn compile_and_execute_variables_symbol_list() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let y = session.builder().symbol("y", Default::default());
+    let z = session.builder().symbol("z", Default::default());
+    let xy = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Multiply),
+        vec![x, y],
+        Default::default(),
+    );
+    let expr = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![xy, z],
+        Default::default(),
+    );
+    let variables = ApplicationHead::Semantic(SemanticOperator::Variables);
+    let term = session.builder().application(variables, vec![expr], Default::default());
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("variables");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Collection { elements, .. }) if elements.len() == 3 => {
+            let names: Vec<_> = elements
+                .iter()
+                .map(|id| match session.arena.get(*id) {
+                    Some(TermNode::Atom(Atom::Symbol(sym))) => session.arena.symbols().resolve(*sym).expect("name"),
+                    other => panic!("expected symbol, got {other:?}"),
+                })
+                .collect();
+            assert_eq!(names, vec!["x", "y", "z"]);
+        }
+        other => panic!("expected Variables list {{x, y, z}}, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
