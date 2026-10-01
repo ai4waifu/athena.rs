@@ -111,6 +111,20 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
                 Ok(push_semantic(session, SemanticOperator::Sqrt, vec![term]))
             }
         }
+        SemanticOperator::RealPart | SemanticOperator::ImaginaryPart | SemanticOperator::Conjugate => {
+            if let Some(n) = number_of(session, term) {
+                let out = match op {
+                    SemanticOperator::RealPart => exact_real_part(&clone_number(n)),
+                    SemanticOperator::ImaginaryPart => exact_imaginary_part(&clone_number(n)),
+                    SemanticOperator::Conjugate => exact_conjugate(&clone_number(n)),
+                    _ => None,
+                };
+                if let Some(value) = out {
+                    return Ok(push_number(session, value));
+                }
+            }
+            Ok(push_semantic(session, op, vec![term]))
+        }
         SemanticOperator::IntegerDigits => {
             if let Some(n) = number_of(session, term) {
                 if let Some(i) = n.as_exact_integer() {
@@ -213,6 +227,47 @@ pub(crate) fn evaluate_unary_term(session: &mut Session, op: SemanticOperator, t
             _ => Ok(push_semantic(session, SemanticOperator::Head, vec![term])),
         },
         _ => Err(diag("semantic_operator_not_implemented")),
+    }
+}
+
+fn real_component_to_number(re: &Real) -> Option<Number> {
+    match re {
+        Real::Machine(x) => {
+            if x.is_finite() && x.fract() == 0.0 && x.abs() <= i64::MAX as f64 {
+                Some(Number::small_int(*x as i64))
+            }
+            else {
+                Some(Number::machine(*x))
+            }
+        }
+        Real::Decimal(d) => d.clone_inline().map(Number::decimal),
+    }
+}
+
+fn exact_real_part(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) | Number::Rational(_) | Number::Real(_) => n.clone_inline(),
+        Number::Complex(z) => real_component_to_number(&z.re),
+        _ => None,
+    }
+}
+
+fn exact_imaginary_part(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) | Number::Rational(_) | Number::Real(_) => Some(Number::small_int(0)),
+        Number::Complex(z) => real_component_to_number(&z.im),
+        _ => None,
+    }
+}
+
+fn exact_conjugate(n: &Number) -> Option<Number> {
+    match n {
+        Number::Integer(_) | Number::Rational(_) | Number::Real(_) => n.clone_inline(),
+        Number::Complex(z) => {
+            let conj = z.conjugate().expect("machine complex conjugate");
+            Some(Number::complex(conj))
+        }
+        _ => None,
     }
 }
 
