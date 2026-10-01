@@ -115,11 +115,14 @@ pub fn call_domain_provider(session: &mut Session, request: DomainRequest) -> Re
             Ok(DomainResult::GaloisTheory(execute_galois_with_tables(req, session.rings.field_table_mut(), &mut session.groups)))
         }
         DomainRequest::GraphTheory(req) => Ok(DomainResult::GraphTheory(execute_graph_theory(req))),
-        DomainRequest::LinearAlgebra(req) => Ok(DomainResult::LinearAlgebra(execute_linear_algebra_with_bindings(
-            req,
-            &session.matrix_objects,
-            &|symbol| session.defs.matrix_binding(symbol),
-        ))),
+        DomainRequest::LinearAlgebra(req) => {
+            let req = crate::domains::linear_algebra::resolve_own_numeric_bindings(session, req);
+            Ok(DomainResult::LinearAlgebra(execute_linear_algebra_with_bindings(
+                req,
+                &session.matrix_objects,
+                &|symbol| session.defs.matrix_binding(symbol),
+            )))
+        }
         DomainRequest::Optimization(req) => Ok(DomainResult::Optimization(execute_optimization(req))),
         DomainRequest::Solve(req) => Ok(DomainResult::Solve(execute_solve(session, req))),
     }
