@@ -2760,11 +2760,6 @@ impl<'a> ExecutionHost<'a> {
                 if self.session.arena.structural_eq(a, b) {
                     return Ok(bool_out(true));
                 }
-                if matches!(op, SemanticOperator::Equal | SemanticOperator::Unequal) {
-                    if let Some(same) = collection_structural_equal(self.session, a, b) {
-                        return Ok(bool_out(same));
-                    }
-                }
                 let pick = match op {
                     SemanticOperator::Equal => |o: core::cmp::Ordering| o == core::cmp::Ordering::Equal,
                     SemanticOperator::Unequal => |o: core::cmp::Ordering| o != core::cmp::Ordering::Equal,
@@ -2773,8 +2768,13 @@ impl<'a> ExecutionHost<'a> {
                         return Ok(HostOutcome::Residual(SlotValue::Term(echo)));
                     }
                 };
-                if let Some(broadcast) = compare_list_broadcast(self.session, op, a, b, pick)? {
-                    return Ok(HostOutcome::Value(SlotValue::Term(broadcast)));
+                if matches!(op, SemanticOperator::Equal | SemanticOperator::Unequal) {
+                    if let Some(broadcast) = compare_list_broadcast(self.session, op, a, b, pick)? {
+                        return Ok(HostOutcome::Value(SlotValue::Term(broadcast)));
+                    }
+                    if let Some(same) = collection_structural_equal(self.session, a, b) {
+                        return Ok(bool_out(same));
+                    }
                 }
                 let na = number_of(self.session, a).map(clone_number);
                 let nb = number_of(self.session, b).map(clone_number);
