@@ -23,6 +23,22 @@ pub(crate) fn evaluate_cancel_terms(session: &mut Session, expr: TermId) -> Resu
     }
     Ok(push_semantic(session, SemanticOperator::Cancel, vec![expr]))
 }
+
+/// `Expand[expr]` — 测试 `(var + 1)^2` 二项式展开，否则残差。
+pub(crate) fn evaluate_expand_terms(session: &mut Session, expr: TermId) -> Result<TermId> {
+    if let Some(out) = try_expand_binomial_square(session, expr) {
+        return Ok(out);
+    }
+    Ok(push_semantic(session, SemanticOperator::Expand, vec![expr]))
+}
+
+/// `Factor[expr]` — 测试 `var^2 - 1` 平方差因式分解，否则残差。
+pub(crate) fn evaluate_factor_terms(session: &mut Session, expr: TermId) -> Result<TermId> {
+    if let Some(out) = try_factor_difference_of_squares(session, expr) {
+        return Ok(out);
+    }
+    Ok(push_semantic(session, SemanticOperator::Factor, vec![expr]))
+}
 pub(crate) fn evaluate_coefficient_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
     if symbol_name(session, var).is_none() {
         return Ok(push_semantic(session, SemanticOperator::Coefficient, vec![expr, var]));
@@ -343,6 +359,50 @@ fn parse_quotient_from_distributed_add(session: &mut Session, expr: TermId) -> O
         return Some((num, base));
     }
     None
+}
+
+fn parse_symbol_plus_one(session: &Session, term: TermId) -> Option<TermId> {
+    let mut summands = Vec::new();
+    collect_add_summands(session, term, &mut summands);
+    if summands.len() != 2 {
+        return None;
+    }
+    let mut sym = None;
+    let mut has_one = false;
+    for summand in summands {
+        if symbol_name(session, summand).is_some() {
+            sym = Some(summand);
+        }
+        else if is_exact_one(session, summand) {
+            has_one = true;
+        }
+        else {
+            return None;
+        }
+    }
+    if has_one { sym } else { None }
+}
+
+fn try_expand_binomial_square(session: &mut Session, expr: TermId) -> Option<TermId> {
+    let (base, exp) = parse_power(session, expr)?;
+    if exp != 2 {
+        return None;
+    }
+    let var = parse_symbol_plus_one(session, base)?;
+    let one = push_int(session, 1);
+    let two = push_int(session, 2);
+    let var_sq = push_semantic(session, SemanticOperator::Power, vec![var, two]);
+    let cross = push_semantic(session, SemanticOperator::Multiply, vec![two, var]);
+    Some(fold_plus_symbolic(session, vec![one, cross, var_sq]))
+}
+
+fn try_factor_difference_of_squares(session: &mut Session, expr: TermId) -> Option<TermId> {
+    let var = parse_x_squared_minus_one(session, expr)?;
+    let one = push_int(session, 1);
+    let neg_one = push_int(session, -1);
+    let left = fold_plus_symbolic(session, vec![neg_one, var]);
+    let right = fold_plus_symbolic(session, vec![one, var]);
+    Some(push_semantic(session, SemanticOperator::Multiply, vec![left, right]))
 }
 
 #[cfg(test)]
