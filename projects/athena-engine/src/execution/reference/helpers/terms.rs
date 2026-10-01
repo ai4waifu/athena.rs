@@ -171,7 +171,7 @@ pub(crate) fn eval_trig_exact_session(session: &mut Session, function: UnaryFunc
     match function {
         UnaryFunction::Sin => Some(session.builder().int(0, Default::default())),
         UnaryFunction::Cos => Some(session.builder().int(if angle % 2 == 0 { 1 } else { -1 }, Default::default())),
-        UnaryFunction::Tan if angle % 2 == 0 => Some(session.builder().int(0, Default::default())),
+        UnaryFunction::Tan => Some(session.builder().int(0, Default::default())),
         _ => None,
     }
 }
