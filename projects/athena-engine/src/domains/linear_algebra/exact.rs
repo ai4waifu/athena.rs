@@ -828,6 +828,88 @@ pub fn eigenvalues_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic
     Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_exact_supported_cases_only"))
 }
 
+fn primitive_rational_pair(x: Rational, y: Rational) -> (Rational, Rational) {
+    if x.is_zero() && y.is_zero() {
+        return (x, y);
+    }
+    let (mut px, mut py) = if x.denominator().is_one() && y.denominator().is_one() {
+        let xi = x.numerator().abs();
+        let yi = y.numerator().abs();
+        let g = if xi.is_zero() {
+            yi
+        }
+        else if yi.is_zero() {
+            xi
+        }
+        else {
+            xi.gcd(&yi)
+        };
+        let div = |n: Integer| {
+            if g.is_one() {
+                n
+            }
+            else {
+                n.div(&g).unwrap_or(n)
+            }
+        };
+        (Rational::from_integer(div(x.numerator())), Rational::from_integer(div(y.numerator())))
+    }
+    else {
+        (x, y)
+    };
+    if px.is_negative() || (px.is_zero() && py.is_negative()) {
+        px = px.neg();
+        py = py.neg();
+    }
+    (px, py)
+}
+
+fn eigenvector_for_lambda_symmetric_2x2(a: Rational, b: Rational, lambda: Rational) -> Result<(Rational, Rational), Diagnostic> {
+    if b.is_zero() {
+        if lambda == a {
+            return Ok((Rational::one(), Rational::zero()));
+        }
+        return Ok((Rational::zero(), Rational::one()));
+    }
+    let (x, y) = primitive_rational_pair(b, lambda.sub(&a));
+    if x.is_zero() && y.is_zero() {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigenvector_zero_only"));
+    }
+    Ok((x, y))
+}
+
+/// 精确实对称 `2×2` 特征向量（`n×n` 行基，与 [`eigenvalues_symmetric_2x2_exact`] 同序）。
+pub fn eigenvectors_symmetric_2x2_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if matrix.parent().element.is_machine() {
+        return Err(Diagnostic::new(DiagnosticCode::TypeMismatch).detail("reason", "eigen_exact_rejects_machine"));
+    }
+    if matrix.shape().rows != 2 || matrix.shape().cols != 2 {
+        return Err(Diagnostic::new(DiagnosticCode::ShapeMismatch).detail("reason", "eigen_symmetric_2x2_only"));
+    }
+    if !super::ops::is_symmetric(matrix)? {
+        return Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigen_symmetric_2x2_requires_symmetric"));
+    }
+    let a = matrix_entry_rational(matrix.get(0, 0)?)?;
+    let b = matrix_entry_rational(matrix.get(0, 1)?)?;
+    let evals = eigenvalues_symmetric_2x2_exact(matrix)?;
+    let lambda0 = matrix_entry_rational(evals.get(0, 0)?)?;
+    let lambda1 = matrix_entry_rational(evals.get(0, 1)?)?;
+    let (v0x, v0y) = eigenvector_for_lambda_symmetric_2x2(clone_rational(&a), clone_rational(&b), lambda0)?;
+    let (v1x, v1y) = eigenvector_for_lambda_symmetric_2x2(clone_rational(&a), clone_rational(&b), lambda1)?;
+    MatrixValue::from_rationals_row_major(2, 2, vec![v0x, v0y, v1x, v1y])
+}
+
+/// 精确特征向量（对角阵或实对称 `2×2`；`n×n` 行基，与 [`eigenvalues_exact`] 同序）。
+pub fn eigenvectors_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
+    if is_diagonal(matrix)? {
+        return eigenvectors_diagonal_exact(matrix);
+    }
+    if matrix.shape().rows == 2 && matrix.shape().cols == 2 && super::ops::is_symmetric(matrix)? {
+        return eigenvectors_symmetric_2x2_exact(matrix);
+    }
+    Err(Diagnostic::new(DiagnosticCode::UnsupportedOperation).detail("reason", "eigenvectors_exact_supported_cases_only"))
+}
+
 /// 精确对角阵特征向量（`n×n` 行基，与 [`eigenvalues_diagonal_exact`] 同序）。
 pub fn eigenvectors_diagonal_exact(matrix: &MatrixValue) -> Result<MatrixValue, Diagnostic> {
     let diag = diagonal_rationals_descending(matrix)?;

@@ -5,7 +5,7 @@ use athena_types::{Diagnostic, DiagnosticCode, SymbolId};
 use super::{
     exact::{
         ExactDetResult, ExactInverseResult, ExactNormResult, ExactNullSpaceResult, ExactRankResult, ExactRrefResult, ExactSolveResult,
-        ExactTraceResult, det_bareiss, eigenvalues_exact, eigenvectors_diagonal_exact, invert_exact, norm2_exact, nullspace_exact,
+        ExactTraceResult, det_bareiss, eigenvalues_exact, eigenvectors_exact, invert_exact, norm2_exact, nullspace_exact,
         rank_exact, right_solve_exact, rref_rational, solve_exact, trace_exact,
     },
     machine::{MachineCondEstimate, MachineSolveResult, condition_number_machine, rank_machine, right_solve_machine, solve_machine},
@@ -411,7 +411,7 @@ fn run(
         }
         LinearAlgebraRequest::Eigenvectors { matrix } => {
             let matrix = matrix.resolve_value(store, matrix_binding)?;
-            Ok(LinearAlgebraValue::matrix_outcome(eigenvectors_diagonal_exact(&matrix)?))
+            Ok(LinearAlgebraValue::matrix_outcome(eigenvectors_exact(&matrix)?))
         }
         LinearAlgebraRequest::Dot { lhs, rhs } => {
             let lhs = lhs.resolve_value(store, matrix_binding)?;
