@@ -386,6 +386,32 @@ pub(crate) fn evaluate_list_q_terms(session: &mut Session, arg: TermId) -> Resul
     Ok(push_bool(session, list))
 }
 
+/// `NumericQ[expr]` — 数字原子。
+pub(crate) fn evaluate_numeric_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    if number_of(session, arg).is_some() {
+        return Ok(push_bool(session, true));
+    }
+    if matches!(session.arena.get(arg), Some(athena_ir::TermNode::Atom(_))) {
+        return Ok(push_bool(session, false));
+    }
+    Ok(push_semantic(session, SemanticOperator::NumericQ, vec![arg]))
+}
+
+/// `NumberQ[expr]` — 数字原子（Living 16 与 `NumericQ` 同范围，保留表面名）。
+pub(crate) fn evaluate_number_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    evaluate_numeric_q_terms(session, arg)
+}
+
+/// `PossibleZeroQ[expr]` — 数字零测试。
+pub(crate) fn evaluate_possible_zero_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    if let Some(num) = number_of(session, arg) {
+        return Ok(push_bool(session, num.is_zero()));
+    }
+    Ok(push_semantic(session, SemanticOperator::PossibleZeroQ, vec![arg]))
+}
+
 /// `Select[list, EvenQ]` — bare `EvenQ` head filters exact-integer lists.
 pub(crate) fn evaluate_select_terms(session: &mut Session, list: TermId, pred: TermId) -> Result<TermId> {
     if !bare_even_q_head(session, pred) {
