@@ -781,6 +781,95 @@ fn compile_and_execute_collect_and_polynomial_gcd() {
 }
 
 #[test]
+fn compile_and_execute_discriminant_resultant_and_polynomial_remainder() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let neg_one = session.builder().int(-1, Default::default());
+    let neg_three = session.builder().int(-3, Default::default());
+    let zero = session.builder().int(0, Default::default());
+    let x2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, two],
+        Default::default(),
+    );
+    let quad = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, x, one],
+        Default::default(),
+    );
+    let discriminant = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Discriminant),
+        vec![quad, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(discriminant))
+        .expect("discriminant");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert!(session.arena.structural_eq(
+        session.results.get(result_id).expect("result").symbolic_term.expect("term"),
+        neg_three,
+    ));
+
+    let diff = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, neg_one],
+        Default::default(),
+    );
+    let linear = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x, neg_one],
+        Default::default(),
+    );
+    let resultant = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Resultant),
+        vec![diff, linear, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(resultant))
+        .expect("resultant");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert!(session.arena.structural_eq(
+        session.results.get(result_id).expect("result").symbolic_term.expect("term"),
+        zero,
+    ));
+
+    let three = session.builder().int(3, Default::default());
+    let x3 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, three],
+        Default::default(),
+    );
+    let cubic = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x3, one],
+        Default::default(),
+    );
+    let divisor = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x, one],
+        Default::default(),
+    );
+    let remainder = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::PolynomialRemainder),
+        vec![cubic, divisor, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(remainder))
+        .expect("remainder");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    assert!(session.arena.structural_eq(
+        session.results.get(result_id).expect("result").symbolic_term.expect("term"),
+        zero,
+    ));
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());

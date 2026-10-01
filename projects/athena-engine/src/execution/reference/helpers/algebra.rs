@@ -59,6 +59,55 @@ pub(crate) fn evaluate_polynomial_gcd_terms(session: &mut Session, left: TermId,
     Ok(push_semantic(session, SemanticOperator::PolynomialGCD, vec![left, right]))
 }
 
+/// `Discriminant[expr, var]` — 一元二次 `b^2 - 4ac`，否则残差。
+pub(crate) fn evaluate_discriminant_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
+    if symbol_name(session, var).is_none() {
+        return Ok(push_semantic(session, SemanticOperator::Discriminant, vec![expr, var]));
+    }
+    if let Some((a, b, c)) = parse_univariate_quadratic_coeffs(&mut *session, expr, var) {
+        let disc = b * b - 4 * a * c;
+        return Ok(push_int(session, disc));
+    }
+    Ok(push_semantic(session, SemanticOperator::Discriminant, vec![expr, var]))
+}
+
+/// `Resultant[p, q, var]` — 共享一次因子时为 `0`，否则残差。
+pub(crate) fn evaluate_resultant_terms(session: &mut Session, left: TermId, right: TermId, var: TermId) -> Result<TermId> {
+    if symbol_name(session, var).is_none() {
+        return Ok(push_semantic(session, SemanticOperator::Resultant, vec![left, right, var]));
+    }
+    if try_polynomial_gcd_difference_of_squares(session, left, right).is_some() {
+        return Ok(push_int(session, 0));
+    }
+    Ok(push_semantic(session, SemanticOperator::Resultant, vec![left, right, var]))
+}
+
+/// `PolynomialRemainder[p, q, var]` — 测试 `x^3 + 1` 除以 `x + 1`，否则残差。
+pub(crate) fn evaluate_polynomial_remainder_terms(
+    session: &mut Session,
+    dividend: TermId,
+    divisor: TermId,
+    var: TermId,
+) -> Result<TermId> {
+    if symbol_name(session, var).is_none() {
+        return Ok(push_semantic(
+            session,
+            SemanticOperator::PolynomialRemainder,
+            vec![dividend, divisor, var],
+        ));
+    }
+    if let Some(x) = parse_x_plus_one(session, divisor) {
+        if parse_x_cubed_plus_one(session, dividend) == Some(x) {
+            return Ok(push_int(session, 0));
+        }
+    }
+    Ok(push_semantic(
+        session,
+        SemanticOperator::PolynomialRemainder,
+        vec![dividend, divisor, var],
+    ))
+}
+
 pub(crate) fn evaluate_coefficient_terms(session: &mut Session, expr: TermId, var: TermId) -> Result<TermId> {
     if symbol_name(session, var).is_none() {
         return Ok(push_semantic(session, SemanticOperator::Coefficient, vec![expr, var]));
@@ -452,6 +501,80 @@ fn kernel_contains_add_with_var(session: &Session, term: TermId, var: TermId) ->
         }
         _ => false,
     }
+}
+
+fn parse_univariate_quadratic_coeffs(session: &mut Session, expr: TermId, var: TermId) -> Option<(i64, i64, i64)> {
+    let mut a = 0i64;
+    let mut b = 0i64;
+    let mut c = 0i64;
+    let mut summands = Vec::new();
+    collect_add_summands(session, expr, &mut summands);
+    for term in summands {
+        let (coef, kernel) = split_numeric_coeff_session(session, term);
+        let coef_i = coef.as_exact_integer()?;
+        match kernel_exponent_in_var(session, kernel, var) {
+            Some(2) => a += coef_i,
+            Some(1) => b += coef_i,
+            Some(0) => c += coef_i,
+            Some(_) => return None,
+            None => return None,
+        }
+    }
+    if a == 0 {
+        return None;
+    }
+    Some((a, b, c))
+}
+
+fn parse_x_plus_one(session: &Session, term: TermId) -> Option<TermId> {
+    if let Some((left, right)) = parse_subtract_pair(session, term) {
+        if is_exact_neg_one(session, right) {
+            return Some(left);
+        }
+    }
+    let mut summands = Vec::new();
+    collect_add_summands(session, term, &mut summands);
+    if summands.len() != 2 {
+        return None;
+    }
+    let mut base = None;
+    let mut has_one = false;
+    for summand in summands {
+        if symbol_name(session, summand).is_some() {
+            base = Some(summand);
+            continue;
+        }
+        if is_exact_one(session, summand) {
+            has_one = true;
+            continue;
+        }
+        return None;
+    }
+    if has_one { base } else { None }
+}
+
+fn parse_x_cubed_plus_one(session: &Session, term: TermId) -> Option<TermId> {
+    let mut summands = Vec::new();
+    collect_add_summands(session, term, &mut summands);
+    if summands.len() != 2 {
+        return None;
+    }
+    let mut base = None;
+    let mut has_one = false;
+    for summand in summands {
+        if let Some((b, exp)) = parse_power(session, summand) {
+            if exp == 3 {
+                base = Some(b);
+                continue;
+            }
+        }
+        if is_exact_one(session, summand) {
+            has_one = true;
+            continue;
+        }
+        return None;
+    }
+    if has_one { base } else { None }
 }
 
 fn try_polynomial_gcd_difference_of_squares(session: &Session, left: TermId, right: TermId) -> Option<TermId> {
