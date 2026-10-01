@@ -27,7 +27,7 @@ use crate::{
             evaluate_member_q_terms, evaluate_sort_terms, evaluate_delete_duplicates_terms,
             evaluate_count_terms, evaluate_partition_terms, evaluate_constant_array_terms, evaluate_union_terms,
             evaluate_intersection_terms, evaluate_accumulate_terms, evaluate_differences_terms, evaluate_free_q_terms,
-            evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_select_terms, evaluate_list_convolve_terms,
+            evaluate_even_q_terms, evaluate_integer_q_terms, evaluate_atom_q_terms, evaluate_list_q_terms, evaluate_numeric_q_terms, evaluate_number_q_terms, evaluate_possible_zero_q_terms, evaluate_string_q_terms, evaluate_positive_terms, evaluate_vector_q_terms, evaluate_matrix_q_terms, evaluate_boolean_q_terms, evaluate_member_of_terms, evaluate_select_terms, evaluate_list_convolve_terms,
             evaluate_extract_terms, evaluate_pad_left_terms, evaluate_riffle_terms, evaluate_position_terms, evaluate_array_terms,
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
@@ -1730,6 +1730,16 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_member_of(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 2 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::MemberOf.discriminant())));
+        }
+        let elem = self.slot_as_term(args[0])?;
+        let domain = self.slot_as_term(args[1])?;
+        let term = evaluate_member_of_terms(self.session, elem, domain)?;
+        Ok(HostOutcome::Value(SlotValue::Term(term)))
+    }
+
     fn apply_select(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
         if args.len() != 2 {
             return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Select.discriminant())));
@@ -3078,6 +3088,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::BooleanQ.discriminant() {
             return self.apply_boolean_q(args);
+        }
+        if op.0 == SemanticOperator::MemberOf.discriminant() {
+            return self.apply_member_of(args);
         }
         if op.0 == SemanticOperator::And.discriminant() {
             return self.apply_logical(SemanticOperator::And, args);

@@ -10,7 +10,7 @@ use crate::{
 
 use super::{
     evaluate_arithmetic_terms, fold_plus_symbolic, fold_subtract_symbolic, nested_list_shape,
-    re_eval_term, rebuild_application, terms::expand_span_3, try_apply_callable,
+    re_eval_term, rebuild_application, symbol_name, terms::expand_span_3, try_apply_callable,
 };
 
 /// `Join[list…]` — 展平有序集合；任一非集合则残差。
@@ -467,6 +467,21 @@ pub(crate) fn evaluate_boolean_q_terms(session: &mut Session, arg: TermId) -> Re
         return Ok(push_bool(session, true));
     }
     Ok(push_semantic(session, SemanticOperator::BooleanQ, vec![arg]))
+}
+
+/// `MemberOf[elem, domain]` — `Element[elem, Integers]` 等集合成员测试。
+pub(crate) fn evaluate_member_of_terms(session: &mut Session, elem: TermId, domain: TermId) -> Result<TermId> {
+    use crate::runtime::values::arena::push_bool;
+    if symbol_name(session, domain).as_deref() == Some("Integers") {
+        if let Some(num) = number_of(session, elem) {
+            let in_integers = num.as_exact_integer().is_some()
+                || num.as_integer().is_some()
+                || num.as_rational().is_some_and(|r| r.is_integer());
+            return Ok(push_bool(session, in_integers));
+        }
+        return Ok(push_bool(session, false));
+    }
+    Ok(push_semantic(session, SemanticOperator::MemberOf, vec![elem, domain]))
 }
 
 /// `Select[list, EvenQ]` — bare `EvenQ` head filters exact-integer lists.
