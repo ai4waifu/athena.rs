@@ -197,6 +197,8 @@ pub enum SemanticOperator {
     // structure
     /// 绝对值（亦见 [`UnaryFunction::Abs`]）。
     Abs,
+    /// 向下取整（方言 `Floor`；精确整数与 machine 实数）。
+    Floor,
     /// 十进制数字列表（方言 `IntegerDigits`；精确整数）。
     IntegerDigits,
     /// 集合长度。
@@ -417,6 +419,7 @@ impl SemanticOperator {
             Self::MatrixQ => 272,
             Self::BooleanQ => 273,
             Self::Abs => 21,
+            Self::Floor => 276,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -549,6 +552,7 @@ impl SemanticOperator {
             272 => Some(Self::MatrixQ),
             273 => Some(Self::BooleanQ),
             21 => Some(Self::Abs),
+            276 => Some(Self::Floor),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -684,6 +688,7 @@ impl SemanticOperator {
             Self::MatrixQ => "MatrixQ",
             Self::BooleanQ => "BooleanQ",
             Self::Abs => "Abs",
+            Self::Floor => "Floor",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",

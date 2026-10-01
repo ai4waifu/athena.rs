@@ -3179,6 +3179,9 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Sqrt.discriminant() {
             return self.apply_unary(SemanticOperator::Sqrt, args);
         }
+        if op.0 == SemanticOperator::Floor.discriminant() {
+            return self.apply_unary(SemanticOperator::Floor, args);
+        }
         if op.0 == SemanticOperator::IntegerDigits.discriminant() {
             return self.apply_unary(SemanticOperator::IntegerDigits, args);
         }

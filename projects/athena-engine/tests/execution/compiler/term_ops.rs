@@ -8,7 +8,8 @@ use athena_engine::{
     },
 };
 use athena_ir::{ApplicationHead, Atom, MathematicalConstant, SemanticOperator, TermNode, UnaryFunction};
-use athena_types::ComputationStatus;
+use athena_numeric::Number;
+use athena_types::{ComputationStatus, TermId};
 
 #[test]
 fn compile_atom_term_module() {
@@ -125,6 +126,29 @@ fn compile_and_execute_sign_exact() {
         match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
             Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
             other => panic!("expected Sign[{input}] == {expected}, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn compile_and_execute_floor_exact() {
+    let mut session = Session::new();
+    let cases: Vec<(TermId, i64)> = vec![
+        (session.builder().int(5, Default::default()), 5),
+        (session.builder().number(Number::machine(2.7), Default::default()), 2),
+        (
+            session.builder().number(Number::rational_i64(-5, 2).expect("rational"), Default::default()),
+            -3,
+        ),
+    ];
+    for (arg, expected) in cases {
+        let floor = ApplicationHead::Semantic(SemanticOperator::Floor);
+        let term = session.builder().application(floor, vec![arg], Default::default());
+        let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(term)).expect("floor");
+        let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+        match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+            Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(expected) => {}
+            other => panic!("expected Floor == {expected}, got {other:?}"),
         }
     }
 }
