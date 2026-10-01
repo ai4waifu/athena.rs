@@ -826,7 +826,7 @@ fn goal_eigenvalues_and_eigenvectors_diagonal() {
     assert!(matches!(session.arena.get(items[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
 
     let eigenvectors = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
-        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into() },
+        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into(), column_basis: false },
     )));
     let result_id = execute_ir_request(&mut session, eigenvectors).expect("eigenvectors goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
@@ -913,9 +913,46 @@ fn goal_eigenvectors_symmetric_2x2() {
         .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(1)]).unwrap());
 
     let eigenvectors = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
-        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into() },
+        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into(), column_basis: false },
     )));
     let result_id = execute_ir_request(&mut session, eigenvectors).expect("symmetric eigenvectors goal");
+    let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
+    let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("matrix")
+    else {
+        panic!("expected nested eigenvector matrix");
+    };
+    assert_eq!(rows.len(), 2);
+    let TermNode::Collection { elements: r0, .. } = session.arena.get(rows[0]).expect("row0")
+    else {
+        panic!("expected row list");
+    };
+    assert!(matches!(session.arena.get(r0[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(r0[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    let TermNode::Collection { elements: r1, .. } = session.arena.get(rows[1]).expect("row1")
+    else {
+        panic!("expected row list");
+    };
+    assert!(matches!(session.arena.get(r1[0]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(1)));
+    assert!(matches!(session.arena.get(r1[1]), Some(TermNode::Atom(Atom::Number(n))) if n.as_exact_integer() == Some(-1)));
+}
+
+#[test]
+fn goal_eigenvectors_symmetric_2x2_matlab_column_basis() {
+    use athena_engine::{
+        api::{AthenaRequest, DomainGoal},
+        execution::execute_ir_request,
+    };
+    use athena_ir::{Atom, TermNode};
+
+    let mut session = Session::new();
+    let matrix = session
+        .matrix_objects
+        .intern(MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(2), i(1)]).unwrap());
+
+    let eigenvectors = AthenaRequest::Goal(DomainGoal::Dispatch(DomainRequest::LinearAlgebra(
+        LinearAlgebraRequest::Eigenvectors { matrix: matrix.into(), column_basis: true },
+    )));
+    let result_id = execute_ir_request(&mut session, eigenvectors).expect("column eigenvectors goal");
     let term = session.results.get(result_id).expect("result").symbolic_term.expect("projected");
     let TermNode::Collection { elements: rows, .. } = session.arena.get(term).expect("matrix")
     else {
