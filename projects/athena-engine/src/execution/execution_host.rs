@@ -35,7 +35,8 @@ use crate::{
             evaluate_matrix_constructor_terms,
             evaluate_diagonal_matrix_terms, evaluate_product_iterator_terms, evaluate_product_terms, evaluate_range_terms, evaluate_replace_all_terms,
             evaluate_rule_terms, evaluate_simplify_terms, evaluate_size_terms, evaluate_special_unary_terms,
-            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_unary_term, slot_as_boolean_like, collection_structural_equal,
+            evaluate_sum_iterator_terms, evaluate_sum_terms, evaluate_mean_terms, evaluate_unary_term, slot_as_boolean_like,
+            collection_structural_equal,
             store_index_axes,
             store_index_axes_matrix, symbolic_term_from_value_id, parse_matrix_dims,
             rational_to_term_session, complex_exact_to_term_session, expand_span_3, term_to_rational_matrix_session, term_to_exact_matrix_session,
@@ -2309,6 +2310,26 @@ impl<'a> ExecutionHost<'a> {
         Ok(HostOutcome::Value(SlotValue::Term(term)))
     }
 
+    fn apply_mean(&mut self, args: &[SlotValue]) -> Result<HostOutcome> {
+        if args.len() != 1 {
+            return Ok(Self::unsupported(SemanticOpId(SemanticOperator::Mean.discriminant())));
+        }
+        let term = self.slot_as_term(args[0])?;
+        let term = evaluate_mean_terms(self.session, vec![term])?;
+        if matches!(
+            self.session.arena.get(term),
+            Some(athena_ir::TermNode::Application {
+                head: athena_ir::ApplicationHead::Semantic(SemanticOperator::Mean),
+                ..
+            })
+        ) {
+            Ok(HostOutcome::Residual(SlotValue::Term(term)))
+        }
+        else {
+            Ok(HostOutcome::Value(SlotValue::Term(term)))
+        }
+    }
+
     /// `dim=1` → column sums (MATLAB default). `dim=2` → row sums as a column vector.
     fn sum_matrix_ref(
         &mut self,
@@ -3500,6 +3521,9 @@ impl VmHost for ExecutionHost<'_> {
         }
         if op.0 == SemanticOperator::Sum.discriminant() {
             return self.apply_sum(args);
+        }
+        if op.0 == SemanticOperator::Mean.discriminant() {
+            return self.apply_mean(args);
         }
         if op.0 == SemanticOperator::Product.discriminant() {
             return self.apply_product(args);

@@ -305,6 +305,8 @@ pub enum SemanticOperator {
     Size,
     /// 求和。
     Sum,
+    /// 算术平均（方言 `Mean`；平坦数值列表）。
+    Mean,
     /// 求积。
     Product,
     /// 矩阵行列式。
@@ -465,6 +467,7 @@ impl SemanticOperator {
             Self::Discriminant => 289,
             Self::Resultant => 290,
             Self::PolynomialRemainder => 291,
+            Self::Mean => 292,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -613,6 +616,7 @@ impl SemanticOperator {
             289 => Some(Self::Discriminant),
             290 => Some(Self::Resultant),
             291 => Some(Self::PolynomialRemainder),
+            292 => Some(Self::Mean),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -764,6 +768,7 @@ impl SemanticOperator {
             Self::Discriminant => "Discriminant",
             Self::Resultant => "Resultant",
             Self::PolynomialRemainder => "PolynomialRemainder",
+            Self::Mean => "Mean",
             Self::IntegerDigits => "IntegerDigits",
             Self::Length => "Length",
             Self::First => "First",

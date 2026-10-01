@@ -1406,6 +1406,28 @@ fn compile_and_execute_factorial() {
 }
 
 #[test]
+fn compile_and_execute_mean_integer_list() {
+    let mut session = Session::new();
+    let one = session.builder().int(1, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let three = session.builder().int(3, Default::default());
+    let list = session
+        .builder()
+        .collection(athena_types::CollectionKind::OrderedCollection, vec![one, two, three], Default::default());
+    let mean = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Mean),
+        vec![list],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(mean)).expect("mean");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(2) => {}
+        other => panic!("expected Mean[{{1,2,3}}] == 2, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_range_and_sqrt() {
     let mut session = Session::new();
     let n = session.builder().int(3, Default::default());
