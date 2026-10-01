@@ -105,7 +105,7 @@ fn eval_exact_special_unary(session: &mut Session, function: UnaryFunction, arg:
     }
 }
 
-fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
+pub(crate) fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
     if denom == 0 {
         return None;
     }
@@ -114,10 +114,42 @@ fn exact_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
     Some(push_semantic(session, SemanticOperator::Divide, vec![pi, d]))
 }
 
-fn exact_neg_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
+pub(crate) fn exact_neg_pi_over(session: &mut Session, denom: i64) -> Option<TermId> {
     let pi_over = exact_pi_over(session, denom)?;
     let minus_one = session.builder().int(-1, Default::default());
     Some(push_semantic(session, SemanticOperator::Multiply, vec![minus_one, pi_over]))
+}
+
+/// `Arg[z]` on principal-axis machine complexes (`I`, `-I`, positive/negative reals).
+pub(crate) fn exact_arg(session: &mut Session, n: &Number) -> Option<TermId> {
+    use athena_numeric::Real;
+    let z = n.as_complex()?;
+    let re = match &z.re {
+        Real::Machine(x) => *x,
+        _ => return None,
+    };
+    let im = match &z.im {
+        Real::Machine(x) => *x,
+        _ => return None,
+    };
+    if re == 0.0 {
+        if im > 0.0 {
+            return exact_pi_over(session, 2);
+        }
+        if im < 0.0 {
+            return exact_neg_pi_over(session, 2);
+        }
+        return None;
+    }
+    if im == 0.0 {
+        if re > 0.0 {
+            return Some(session.builder().int(0, Default::default()));
+        }
+        if re < 0.0 {
+            return exact_pi_over(session, 1);
+        }
+    }
+    None
 }
 
 fn is_exact_half(n: &Number) -> bool {

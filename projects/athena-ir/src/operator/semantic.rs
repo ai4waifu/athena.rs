@@ -408,6 +408,8 @@ pub enum SemanticOperator {
     ImaginaryPart,
     /// 复共轭（方言 `Conjugate` / `conj`）。
     Conjugate,
+    /// 辐角（方言 `Arg` / `angle`）。
+    Arg,
 }
 
 impl SemanticOperator {
@@ -474,6 +476,7 @@ impl SemanticOperator {
             Self::Mean => 292,
             Self::ImaginaryPart => 293,
             Self::Conjugate => 294,
+            Self::Arg => 295,
             Self::Length => 22,
             Self::First => 23,
             Self::Rest => 24,
@@ -625,6 +628,7 @@ impl SemanticOperator {
             292 => Some(Self::Mean),
             293 => Some(Self::ImaginaryPart),
             294 => Some(Self::Conjugate),
+            295 => Some(Self::Arg),
             22 => Some(Self::Length),
             23 => Some(Self::First),
             24 => Some(Self::Rest),
@@ -865,6 +869,7 @@ impl SemanticOperator {
             Self::RealPart => "RealPart",
             Self::ImaginaryPart => "ImaginaryPart",
             Self::Conjugate => "Conjugate",
+            Self::Arg => "Arg",
         }
     }
 

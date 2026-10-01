@@ -3450,6 +3450,9 @@ impl VmHost for ExecutionHost<'_> {
         if op.0 == SemanticOperator::Conjugate.discriminant() {
             return self.apply_unary(SemanticOperator::Conjugate, args);
         }
+        if op.0 == SemanticOperator::Arg.discriminant() {
+            return self.apply_unary(SemanticOperator::Arg, args);
+        }
         if op.0 == SemanticOperator::Join.discriminant() {
             return self.apply_join(args);
         }
