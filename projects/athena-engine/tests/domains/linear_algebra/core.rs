@@ -1225,6 +1225,18 @@ fn l0_kronecker_row_vectors() {
 }
 
 #[test]
+fn l0_kronecker_matrix_blocks() {
+    let a = MatrixValue::from_integers_row_major(2, 2, vec![i(1), i(2), i(3), i(4)]).unwrap();
+    let b = MatrixValue::from_integers_row_major(2, 2, vec![i(5), i(6), i(7), i(8)]).unwrap();
+    let k = kronecker(&a, &b).unwrap();
+    assert_eq!(k.shape().rows, 4);
+    assert_eq!(k.shape().cols, 4);
+    assert_eq!(k.get(0, 0).unwrap(), MatrixEntry::Integer(i(5)));
+    assert_eq!(k.get(0, 3).unwrap(), MatrixEntry::Integer(i(12)));
+    assert_eq!(k.get(3, 3).unwrap(), MatrixEntry::Integer(i(32)));
+}
+
+#[test]
 fn goal_tril_and_kronecker_project_nested_list() {
     use athena_engine::{
         api::{AthenaRequest, DomainGoal},
