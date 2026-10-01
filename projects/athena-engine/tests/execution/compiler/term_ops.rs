@@ -493,6 +493,67 @@ fn compile_and_execute_variables_symbol_list() {
 }
 
 #[test]
+fn compile_and_execute_coefficient_and_exponent_univariate() {
+    let mut session = Session::new();
+
+    let x = session.builder().symbol("x", Default::default());
+    let three = session.builder().int(3, Default::default());
+    let two = session.builder().int(2, Default::default());
+    let x2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, two],
+        Default::default(),
+    );
+    let three_x = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Multiply),
+        vec![three, x],
+        Default::default(),
+    );
+    let poly = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x2, three_x],
+        Default::default(),
+    );
+
+    let coefficient = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Coefficient),
+        vec![poly, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new()
+        .compile(&mut session, &AthenaRequest::Term(coefficient))
+        .expect("coefficient");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(3) => {}
+        other => panic!("expected Coefficient[x^2 + 3*x, x] == 3, got {other:?}"),
+    }
+
+    let exp3 = session.builder().int(3, Default::default());
+    let x3 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Power),
+        vec![x, exp3],
+        Default::default(),
+    );
+    let poly2 = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Add),
+        vec![x3, x],
+        Default::default(),
+    );
+    let exponent = session.builder().application(
+        ApplicationHead::Semantic(SemanticOperator::Exponent),
+        vec![poly2, x],
+        Default::default(),
+    );
+    let module = ExecutionCompiler::new().compile(&mut session, &AthenaRequest::Term(exponent)).expect("exponent");
+    let result_id = ReferenceExecutor::new().execute(&mut session, &module).expect("execute");
+    match session.arena.get(session.results.get(result_id).expect("result").symbolic_term.expect("term")) {
+        Some(TermNode::Atom(Atom::Number(v))) if v.as_exact_integer() == Some(3) => {}
+        other => panic!("expected Exponent[x^3 + x, x] == 3, got {other:?}"),
+    }
+}
+
+#[test]
 fn compile_and_execute_length_scalar_not_matrix() {
     let mut session = Session::new();
     let five = session.builder().int(5, Default::default());
