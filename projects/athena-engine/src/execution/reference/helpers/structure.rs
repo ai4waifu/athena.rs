@@ -412,6 +412,63 @@ pub(crate) fn evaluate_possible_zero_q_terms(session: &mut Session, arg: TermId)
     Ok(push_semantic(session, SemanticOperator::PossibleZeroQ, vec![arg]))
 }
 
+/// `StringQ[expr]` — `Atom::String`。
+pub(crate) fn evaluate_string_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_ir::{Atom, TermNode};
+    use crate::runtime::values::arena::push_bool;
+    let string = matches!(session.arena.get(arg), Some(TermNode::Atom(Atom::String(_))));
+    Ok(push_bool(session, string))
+}
+
+/// `Positive[expr]` — 数字严格大于零。
+pub(crate) fn evaluate_positive_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_numeric::{Number, compare as num_compare};
+    use crate::runtime::values::arena::push_bool;
+    use std::cmp::Ordering;
+    if let Some(num) = number_of(session, arg) {
+        let zero = Number::small_int(0);
+        let pos = matches!(num_compare(&num, &zero), Some(Ordering::Greater));
+        return Ok(push_bool(session, pos));
+    }
+    Ok(push_semantic(session, SemanticOperator::Positive, vec![arg]))
+}
+
+/// `VectorQ[expr]` — 平坦有序 `Collection`（含 `{}`；非嵌套行块）。
+pub(crate) fn evaluate_vector_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_ir::TermNode;
+    use crate::runtime::values::arena::push_bool;
+    let vector = match session.arena.get(arg) {
+        Some(TermNode::Collection { elements: rows, .. }) => {
+            rows.is_empty() || !matches!(session.arena.get(rows[0]), Some(TermNode::Collection { .. }))
+        }
+        _ => false,
+    };
+    Ok(push_bool(session, vector))
+}
+
+/// `MatrixQ[expr]` — 矩形嵌套行 `Collection`（`{{…},…}`；非空）。
+pub(crate) fn evaluate_matrix_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_ir::TermNode;
+    use crate::runtime::values::arena::push_bool;
+    let matrix = match session.arena.get(arg) {
+        Some(TermNode::Collection { elements: rows, .. }) if !rows.is_empty() => {
+            matches!(session.arena.get(rows[0]), Some(TermNode::Collection { .. })) && nested_list_shape(session, arg).is_some()
+        }
+        _ => false,
+    };
+    Ok(push_bool(session, matrix))
+}
+
+/// `BooleanQ[expr]` — `Atom::Boolean`。
+pub(crate) fn evaluate_boolean_q_terms(session: &mut Session, arg: TermId) -> Result<TermId> {
+    use athena_ir::{Atom, TermNode};
+    use crate::runtime::values::arena::push_bool;
+    if matches!(session.arena.get(arg), Some(TermNode::Atom(Atom::Boolean(_)))) {
+        return Ok(push_bool(session, true));
+    }
+    Ok(push_semantic(session, SemanticOperator::BooleanQ, vec![arg]))
+}
+
 /// `Select[list, EvenQ]` — bare `EvenQ` head filters exact-integer lists.
 pub(crate) fn evaluate_select_terms(session: &mut Session, list: TermId, pred: TermId) -> Result<TermId> {
     if !bare_even_q_head(session, pred) {
